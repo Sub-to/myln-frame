@@ -2,6 +2,7 @@
 #include "../include/myln/frame.h"
 #include "../include/myln/cascade.h"
 #include "../tuner/security_tuner.h"
+#include "../tuner/earthquake_tuner.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -57,6 +58,11 @@ const char* myln_tag      (void* frame) { return ctx(frame)->frame->tag(); }
 int         myln_dim      (void* frame) { return ctx(frame)->frame->dim(); }
 int         myln_n_classes(void* frame) { return ctx(frame)->frame->n_classes(); }
 const char* myln_version  (void)        { return "0.1.0"; }
+
+// ── 地震チューニング ──────────────────────────────────────────
+void myln_tune_earthquake(void* frame, int in_dim) {
+    myln::tune_earthquake(*ctx(frame)->frame, in_dim);
+}
 
 // ── カスケード ─────────────────────────────────────────────
 struct CascadeCtx {

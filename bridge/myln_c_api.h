@@ -64,6 +64,12 @@ MYLN_API int         myln_dim      (void* frame);
 MYLN_API int         myln_n_classes(void* frame);
 MYLN_API const char* myln_version  (void);
 
+/* ── 地震監視 API ──────────────────────────────────────────
+ * features: [intensity/7, magnitude/9, depth_inv, tsunami, freq/10]
+ * 出力クラス: SAFE / LOW / MEDIUM / HIGH / CRITICAL
+ */
+MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
+
 /* ── カスケード（2段リレー）API ────────────────────────────
  * リレー（SS 2頭）で高速判定 → 曖昧なら フル（T 4頭）へ
  * threshold: 確信度の閾値 (0.0〜1.0, 推奨 0.80)

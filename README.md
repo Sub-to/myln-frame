@@ -135,6 +135,14 @@ label, conf, via_relay = cas.predict_with_path([0.5, 0.7, 0.3, 0.95, 0.6])
 
 ---
 
+## Built with MYLN-FRAME
+
+| Project | Description |
+|---|---|
+| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + earthquake alerts (EarthquakeHead) |
+
+---
+
 ## Architecture
 
 ```
