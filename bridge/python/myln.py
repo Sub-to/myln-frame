@@ -71,6 +71,21 @@ class _CAPI:
         lib.myln_version.restype   = ctypes.c_char_p
         lib.myln_version.argtypes  = []
 
+        # カスケード API
+        lib.myln_cascade_new.restype  = ctypes.c_void_p
+        lib.myln_cascade_new.argtypes = [ctypes.c_float]
+        lib.myln_cascade_free.restype  = None
+        lib.myln_cascade_free.argtypes = [ctypes.c_void_p]
+        lib.myln_cascade_tune_security.restype  = None
+        lib.myln_cascade_tune_security.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.myln_cascade_infer.restype  = ctypes.POINTER(ctypes.c_float)
+        lib.myln_cascade_infer.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ctypes.c_float),
+            ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)
+        ]
+        lib.myln_cascade_relay_rate.restype  = ctypes.c_float
+        lib.myln_cascade_relay_rate.argtypes = [ctypes.c_void_p]
+
         self.lib = lib
 
     def version(self) -> str:
@@ -149,3 +164,58 @@ class MylnFrame:
 
     def __repr__(self):
         return f"MylnFrame(tag={self.tag!r}, dim={self.dim}, classes={self.n_classes})"
+
+
+# ── カスケード（2段リレー）────────────────────────────────────
+class MylnCascade:
+    """
+    2段カスケード分類器。
+    リレー（SS 2頭: proc+file）で高速判定 →
+    確信度が低ければ フル（T 4頭）へ。
+
+    Usage:
+        cas = MylnCascade(threshold=0.80).tune_security()
+        label, used_relay = cas.predict_with_path([0.9,0.95,0.8,0.99,0.85])
+    """
+    SECURITY_CLASSES = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+    def __init__(self, threshold: float = 0.80, lib_path: Optional[str] = None):
+        self._api    = _CAPI(lib_path)
+        self._handle = self._api.lib.myln_cascade_new(ctypes.c_float(threshold))
+        if not self._handle:
+            raise RuntimeError("myln_cascade_new() failed")
+
+    def __del__(self):
+        if hasattr(self, "_handle") and self._handle:
+            self._api.lib.myln_cascade_free(self._handle)
+
+    def tune_security(self, in_dim: int = 5) -> "MylnCascade":
+        self._api.lib.myln_cascade_tune_security(self._handle, in_dim)
+        return self
+
+    def infer(self, features: list) -> tuple:
+        """(probs, used_relay) を返す"""
+        n_in  = len(features)
+        arr   = (ctypes.c_float * n_in)(*features)
+        n_out = ctypes.c_int(0)
+        relay = ctypes.c_int(0)
+        ptr   = self._api.lib.myln_cascade_infer(
+            self._handle, arr, n_in,
+            ctypes.byref(n_out), ctypes.byref(relay)
+        )
+        probs = [ptr[i] for i in range(n_out.value)]
+        return probs, bool(relay.value)
+
+    def predict(self, features: list) -> str:
+        probs, _ = self.infer(features)
+        return self.SECURITY_CLASSES[probs.index(max(probs))]
+
+    def predict_with_path(self, features: list) -> tuple:
+        """(クラス名, 確信度, リレー使用?) を返す"""
+        probs, used_relay = self.infer(features)
+        best = probs.index(max(probs))
+        return self.SECURITY_CLASSES[best], probs[best], used_relay
+
+    @property
+    def relay_rate(self) -> float:
+        return self._api.lib.myln_cascade_relay_rate(self._handle)

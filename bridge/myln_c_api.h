@@ -64,6 +64,18 @@ MYLN_API int         myln_dim      (void* frame);
 MYLN_API int         myln_n_classes(void* frame);
 MYLN_API const char* myln_version  (void);
 
+/* ── カスケード（2段リレー）API ────────────────────────────
+ * リレー（SS 2頭）で高速判定 → 曖昧なら フル（T 4頭）へ
+ * threshold: 確信度の閾値 (0.0〜1.0, 推奨 0.80)
+ */
+MYLN_API void*       myln_cascade_new      (float threshold);
+MYLN_API void        myln_cascade_free     (void* cas);
+MYLN_API void        myln_cascade_tune_security(void* cas, int in_dim);
+MYLN_API const float* myln_cascade_infer   (void* cas, const float* features,
+                                            int n_in, int* out_n,
+                                            int* out_used_relay);
+MYLN_API float       myln_cascade_relay_rate(void* cas); // リレー通過率
+
 #ifdef __cplusplus
 }
 #endif

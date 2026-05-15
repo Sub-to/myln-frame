@@ -1,6 +1,8 @@
 #pragma once
 #include "../include/myln/frame.h"
+#include "../include/myln/cascade.h"
 #include "../heads/passthrough_head.h"
+#include "../heads/zero_head.h"
 
 // ── セキュリティ用手動チューニング ────────────────────────────
 //
@@ -118,6 +120,70 @@ inline void tune_security(Frame& frame, const SecurityTuneParams& p = {}) {
     W_cls[4 * dim + 0] = p.slope_crit; b_cls[4] = p.bias_crit;
 
     frame.center().set_cls(W_cls, b_cls);
+}
+
+// ── リレー専用チューニング（2頭: proc + file のみ） ──────────
+// 設計方針:
+//   ① Ring を self=0.9 にして ZeroHead からの信号希釈を防ぐ
+//   ② proc/file の重みを大きく取り「明確な脅威」を強調する
+//   ③ W_cls の傾きをフル版の2倍にして確信度を高める
+//      → 極端な入力(all-0, ransomware)で 80%+ の確信度を出す
+//      → 中間的な入力では低確信度 → フルへ委譲
+//
+// 閾値は 0.5, 1.5, 2.8, 4.2 (フル版と同じ)
+inline void tune_security_relay(Frame& frame, int in_dim = 5) {
+    int dim = frame.dim();
+    frame.init_router(in_dim);
+    frame.router().set_normalize(false);
+
+    // slot 0: proc（やや強め）
+    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
+      W[0*in_dim+0]=7.f; frame.router().set_slot(0,W,b); }
+    // slot 1: ゼロ（使わない）
+    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
+      frame.router().set_slot(1,W,b); }
+    // slot 2: file（最重要・積極的に強調）
+    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
+      W[0*in_dim+3]=12.f; frame.router().set_slot(2,W,b); }
+    // slot 3: ゼロ（使わない）
+    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
+      frame.router().set_slot(3,W,b); }
+
+    // 頭: proc・file だけ active、残りは ZeroHead
+    frame.set_head(0, std::make_unique<PassthroughHead>("relay/proc"));
+    frame.set_head(1, std::make_unique<ZeroHead>());
+    frame.set_head(2, std::make_unique<PassthroughHead>("relay/file"));
+    frame.set_head(3, std::make_unique<ZeroHead>());
+
+    // Ring: self 強め（0.9）→ ZeroHead による信号希釈を最小化
+    frame.ring().set_near_identity(0.9f, 0.05f);
+
+    // CENTER LINE: 正規化なし、dim[0] を強めに見る
+    frame.center().set_normalize_agg(false);
+    frame.center().set_key_identity();
+    Vec q(dim, 0.f); q[0] = 4.f;  // フルより強いクエリ
+    frame.center().set_query(q);
+
+    // W_cls: 傾きをフル版の2倍 → 確信度が高くなる
+    // 閾値は同じ (0.5/1.5/2.8/4.2) だが急峻なので winner が支配的になる
+    // SAFE/LOW  x=0.5:  -2*0.5+18.5 = 17.5  vs  1*0.5+17.0=17.5 ✓
+    // LOW/MED   x=1.5:   1*1.5+17.0 = 18.5  vs  3*1.5+14.0=18.5 ✓
+    // MED/HIGH  x=2.8:   3*2.8+14.0 = 22.4  vs  5*2.8+8.4 =22.4 ✓
+    // HIGH/CRIT x=4.2:   5*4.2+8.4  = 29.4  vs  7*4.2+0   =29.4 ✓
+    Mat W_cls(5*dim,0.f); Vec b_cls(5,0.f);
+    W_cls[0*dim+0]=-2.f; b_cls[0]=18.5f;  // SAFE
+    W_cls[1*dim+0]= 1.f; b_cls[1]=17.0f;  // LOW
+    W_cls[2*dim+0]= 3.f; b_cls[2]=14.0f;  // MEDIUM
+    W_cls[3*dim+0]= 5.f; b_cls[3]= 8.4f;  // HIGH
+    W_cls[4*dim+0]= 7.f; b_cls[4]= 0.0f;  // CRITICAL
+    frame.center().set_cls(W_cls, b_cls);
+}
+
+// ── CascadeFrame をまとめてチューニング ──────────────────────
+inline void tune_cascade_security(CascadeFrame& cascade, float threshold = 0.80f) {
+    cascade.set_threshold(threshold);
+    tune_security_relay(cascade.relay());      // リレー: SS 2頭
+    tune_security      (cascade.full());       // フル:   T  4頭
 }
 
 } // namespace myln

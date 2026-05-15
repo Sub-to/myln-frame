@@ -1,5 +1,6 @@
 #include "myln_c_api.h"
 #include "../include/myln/frame.h"
+#include "../include/myln/cascade.h"
 #include "../tuner/security_tuner.h"
 #include <memory>
 #include <string>
@@ -56,3 +57,39 @@ const char* myln_tag      (void* frame) { return ctx(frame)->frame->tag(); }
 int         myln_dim      (void* frame) { return ctx(frame)->frame->dim(); }
 int         myln_n_classes(void* frame) { return ctx(frame)->frame->n_classes(); }
 const char* myln_version  (void)        { return "0.1.0"; }
+
+// ── カスケード ─────────────────────────────────────────────
+struct CascadeCtx {
+    myln::CascadeFrame cas;
+    std::vector<float> out_buf;
+    explicit CascadeCtx(float thr) : cas(thr) { out_buf.resize(5, 0.f); }
+};
+static CascadeCtx* cctx(void* h) { return static_cast<CascadeCtx*>(h); }
+
+void* myln_cascade_new(float threshold) {
+    try { return new CascadeCtx(threshold); }
+    catch (...) { return nullptr; }
+}
+void myln_cascade_free(void* cas) { delete cctx(cas); }
+
+void myln_cascade_tune_security(void* cas, int in_dim) {
+    myln::tune_cascade_security(cctx(cas)->cas, cctx(cas)->cas.threshold());
+    (void)in_dim;
+}
+
+const float* myln_cascade_infer(void* cas, const float* features,
+                                int n_in, int* out_n, int* out_used_relay) {
+    auto* c = cctx(cas);
+    myln::Vec input(features, features + n_in);
+    auto res = c->cas.run(input);
+    int n = (int)res.probs.size();
+    c->out_buf.resize(n);
+    std::copy(res.probs.begin(), res.probs.end(), c->out_buf.begin());
+    if (out_n)          *out_n = n;
+    if (out_used_relay) *out_used_relay = res.used_relay ? 1 : 0;
+    return c->out_buf.data();
+}
+
+float myln_cascade_relay_rate(void* cas) {
+    return cctx(cas)->cas.relay_rate();
+}
