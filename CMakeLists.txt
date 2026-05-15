@@ -11,5 +11,15 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native")
 
 include_directories(include)
 
-add_executable(hello_myln      examples/hello_myln.cpp)
-add_executable(chibitaru_demo  examples/chibitaru_demo.cpp)
+# ── コアライブラリ（共有ライブラリ）──────────────────────────
+# Python / Node.js / Ruby / Go / Rust など全言語から呼べる C API
+add_library(myln SHARED bridge/myln_c_api.cpp)
+target_include_directories(myln PUBLIC include)
+set_target_properties(myln PROPERTIES
+    C_VISIBILITY_PRESET   hidden
+    CXX_VISIBILITY_PRESET hidden
+)
+
+# ── デモ実行ファイル ──────────────────────────────────────
+add_executable(hello_myln     examples/hello_myln.cpp)
+add_executable(chibitaru_demo examples/chibitaru_demo.cpp)
