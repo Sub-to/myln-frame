@@ -144,7 +144,7 @@ inline void tune_security_relay(Frame& frame, int in_dim = 5) {
       frame.router().set_slot(1,W,b); }
     // slot 2: file（最重要・積極的に強調）
     { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
-      W[0*in_dim+3]=12.f; frame.router().set_slot(2,W,b); }
+      W[0*in_dim+3]=5.f; frame.router().set_slot(2,W,b); }
     // slot 3: ゼロ（使わない）
     { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
       frame.router().set_slot(3,W,b); }
