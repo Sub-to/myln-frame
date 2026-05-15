@@ -139,7 +139,7 @@ label, conf, via_relay = cas.predict_with_path([0.5, 0.7, 0.3, 0.95, 0.6])
 
 | Project | Description |
 |---|---|
-| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + earthquake alerts (EarthquakeHead) |
+| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + worldwide earthquake alerts — USGS + JMA, EarthquakeHead (~0.1 µs) |
 
 ---
 
@@ -159,9 +159,11 @@ include/myln/
 heads/
   passthrough_head.h   — identity (signal passes unchanged)
   zero_head.h          — silence (disabled slot)
+  earthquake_head.h    — ultra-light seismic classifier (~0.1 µs, no matrix multiply)
 
 tuner/
   security_tuner.h     — manual weight tuning, no training needed
+  earthquake_tuner.h   — seismic intensity → SAFE/LOW/MEDIUM/HIGH/CRITICAL
 
 bridge/
   myln_c_api.h/.cpp    — universal C API
@@ -180,6 +182,9 @@ frame.set_head(1, std::make_unique<ZeroHead>());           // inactive slot
 frame.set_head(2, std::make_unique<PassthroughHead>("file"));
 frame.set_head(3, std::make_unique<DefaultHead>());         // learned head
 ```
+
+**Shipped:**
+- `EarthquakeHead` — seismic intensity classifier, powers [myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor)
 
 **Future heads (planned):**
 - `WeatherHead` — typhoon / disaster alert scoring
