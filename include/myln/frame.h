@@ -7,6 +7,8 @@
 #include <array>
 #include <memory>
 #include <stdexcept>
+#include <thread>
+#include <future>
 
 namespace myln {
 
@@ -58,16 +60,43 @@ public:
     }
 
     // ── 推論 ───────────────────────────────────────────────
-    Vec forward(const Vec& input) {
+    //
+    // parallel=false（デフォルト）: 直列・超軽量ヘッド向け
+    // parallel=true:               並列・将来の分散/重量ヘッド向け
+    //
+    // 将来の分散構成では heads_[i]->forward() を
+    // ソケット/gRPC呼び出しに差し替えるだけでOK。
+    // parallel=true の場合は4頭が同時にネットワーク越しに動く。
+    Vec forward(const Vec& input, bool parallel = false) {
         if (!router_ || (int)input.size() != last_in_dim_) {
             last_in_dim_ = (int)input.size();
             router_ = std::make_unique<Router>(last_in_dim_, cfg_.dim);
         }
-        auto routed   = router_->forward(input);
+
+        // 1. APEX: 入力を4スロットに分配
+        auto routed = router_->forward(input);
+
+        // 2. ヘッド実行（軽い頭=直列、重い頭/分散=並列）
         std::array<Vec, 4> head_out;
-        for (int i = 0; i < 4; ++i)
-            head_out[i] = heads_[i]->forward(routed[i], cfg_.dim);
+        if (parallel) {
+            // ── 並列モード: 分散・重量ヘッド向け ──────────────
+            // heads_[i]->forward() がネットワーク通信になっても同じコード
+            std::array<std::future<Vec>, 4> futures;
+            for (int i = 0; i < 4; ++i)
+                futures[i] = std::async(std::launch::async,
+                    [&, i]{ return heads_[i]->forward(routed[i], cfg_.dim); });
+            for (int i = 0; i < 4; ++i)
+                head_out[i] = futures[i].get();
+        } else {
+            // ── 直列モード: SS/T の軽量ヘッドはこちらが速い ──
+            for (int i = 0; i < 4; ++i)
+                head_out[i] = heads_[i]->forward(routed[i], cfg_.dim);
+        }
+
+        // 3. Ring sync（分散時は各ノードがここでネットワーク越しに同期）
         auto ring_out = ring_.forward(head_out);
+
+        // 4. CENTER LINE（分散時は集約ノードで実行）
         return center_.forward(ring_out);
     }
 
