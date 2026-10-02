@@ -91,11 +91,16 @@ MYLN_API const char* myln_version  (void);
 MYLN_API int  myln_tune_earthquake(void* frame, int in_dim);
 
 /* ── カスケード（2段リレー）API ────────────────────────────
- * リレー（SS 2頭）で高速判定 → 曖昧なら フル（T 4頭）へ
- * threshold: 確信度の閾値 (0.0〜1.0, 推奨 0.80)
+ * 既定（exact）: 常にフル（T 4頭）の結果を返す。MylnFrame(T)+tune_security と同一。
+ * 近似（myln_cascade_set_policy(cas, 0)）: リレー（SS 2頭, proc+file のみ）で高速判定し、
+ *   確信度 >= threshold ならそのまま、そうでなければフルへ。リレーは近似なので、
+ *   早期終了の判定がフルと食い違うことがある。
+ * threshold: 近似ポリシーの確信度の閾値 (0.0〜1.0, 推奨 0.80)
  */
 MYLN_API void*       myln_cascade_new      (float threshold);
 MYLN_API void        myln_cascade_free     (void* cas);
+/* exact = 1: 常にフルと同じ結果（既定） / 0: リレーによる近似の早期終了 */
+MYLN_API int         myln_cascade_set_policy(void* cas, int exact);
 MYLN_API int         myln_cascade_tune_security(void* cas, int in_dim);
 MYLN_API const float* myln_cascade_infer   (void* cas, const float* features,
                                             int n_in, int* out_n,

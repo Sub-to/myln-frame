@@ -138,6 +138,14 @@ void* myln_cascade_new(float threshold) {
 }
 void myln_cascade_free(void* cas) { delete cctx(cas); }
 
+int myln_cascade_set_policy(void* cas, int exact) {
+    return guarded<int>(-1, [&] {
+        need_cctx(cas)->cas.set_policy(exact ? myln::CascadeFrame::Policy::Exact
+                                             : myln::CascadeFrame::Policy::Heuristic);
+        return 0;
+    });
+}
+
 int myln_cascade_tune_security(void* cas, int in_dim) {
     return guarded<int>(-1, [&] {
         auto* c = need_cctx(cas);

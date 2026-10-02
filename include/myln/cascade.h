@@ -15,15 +15,33 @@
 //    ├─ Yes（明確な入力）→ そのまま出力   ← 高速パス
 //    └─ No（曖昧な入力） → [FULL] 4頭フル ← 精密パス
 //
-// 入力の「いい加減さ」が速さを決める:
-//   明確: アイドル・ランサムウェア → リレーで即終了
-//   曖昧: 微妙な特徴量の組み合わせ → フルで判定
+// ── Policy ────────────────────────────────────────────────
 //
-// namespace myln
+//  Exact（既定）     常にフルの結果を返す。リレーは評価しない。
+//                    出力は MylnFrame(T) + tune_security と完全に同一。
+//  Heuristic         上の図のとおり。リレーは proc/file しか見ない近似なので、
+//                    早期終了の判定はフルと食い違うことがある（下記）。
+//
+// なぜ「正しい早期終了」を作らなかったか（実測）:
+//   チューニング済みフルは全特徴量について単調なので、未観測の特徴量(net/cpu/mem)
+//   を 0 にしたリレーは「フルのクラスの下界」になる（同サイズなら 20 万入力で違反 0）。
+//   下界が最大クラスなら早期終了しても厳密に正しいが、proc=file=1.0 でも下界は
+//   MEDIUM までしか届かない（CRITICAL には net/cpu/mem も要る）ので、厳密に正しい
+//   早期終了は実質 0% になる。しかも下界がフルと一致するにはフルと同じ dim が必要で
+//   （attention が 1/sqrt(dim) でスケールする）、そうするとリレーもフルと同じコスト。
+//   チューニング済み T は ~1.6µs、SS は ~0.6µs なので、元々の「100µs 節約」という
+//   動機も無くなった。よって既定を Exact にしている。
+//
+// 内部の Frame が作業バッファを使うので、複数スレッドから同時に呼ばないこと。
 
 namespace myln {
 
 class CascadeFrame {
+public:
+    enum class Policy { Exact, Heuristic };
+
+private:
+    Policy policy_ = Policy::Exact;
     Frame relay_;       // 軽い: SS / 2頭(proc+file)
     Frame full_;        // 重い: T  / 4頭フル
     float threshold_;   // 確信度の閾値（0.0〜1.0）
@@ -31,8 +49,9 @@ class CascadeFrame {
     long full_hits_  = 0;  // フルまで回った回数
 
 public:
-    CascadeFrame(float threshold = 0.80f)
-        : relay_(SS, 5)   // 5クラス固定（セキュリティ用）
+    explicit CascadeFrame(float threshold = 0.80f, Policy policy = Policy::Exact)
+        : policy_(policy)
+        , relay_(SS, 5)   // 5クラス固定（セキュリティ用）
         , full_ (T,  5)
         , threshold_(threshold)
     {
@@ -48,6 +67,8 @@ public:
         threshold_ = t;
     }
     float  threshold() const { return threshold_; }
+    void   set_policy(Policy p) { policy_ = p; }
+    Policy policy() const { return policy_; }
 
     // ── 推論 ───────────────────────────────────────────────
     // 戻り値: {probs, used_relay}
@@ -63,9 +84,16 @@ public:
         return r;
     }
 
-    // ヒープ確保なし版。probs は 5 個。戻り値: リレーで終わったか。
+    // ヒープ確保なし版。probs は 5 個。戻り値: リレーで終わったか
+    // （Exact では常に false）。
     bool run_into(const float* features, int n_in, float* probs) {
-        // 1. リレー（SS・2頭）で高速判定
+        if (policy_ == Policy::Exact) {
+            ++full_hits_;
+            full_.forward_into(features, n_in, probs);
+            return false;
+        }
+
+        // 1. リレー（SS・2頭）で高速判定（Heuristic）
         relay_.forward_into(features, n_in, probs);
         float conf = *std::max_element(probs, probs + 5);
 

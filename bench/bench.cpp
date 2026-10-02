@@ -4,7 +4,7 @@
 //   latency   : 1 推論あたりの平均 / p50 / p99 (ns)
 //   monotone  : ある特徴量を増やしてもクラスが下がらないか（違反数）
 //   anchors   : README の代表シナリオ 5 件の判定クラスと確信度
-//   cascade   : リレー通過率 / フルとの一致率
+//   cascade   : exact はフルと一致 / heuristic はリレー通過率とフルとの一致率
 #include "myln/frame.h"
 #include "myln/cascade.h"
 #include "tuner/security_tuner.h"
@@ -47,7 +47,8 @@ int main(int argc, char** argv) {
 
     Frame ss = make_ss(5), t = make_t(5), s = make_s(5);
     tune_security(ss); tune_security(t); tune_security(s);
-    CascadeFrame cas(0.80f); tune_cascade_security(cas, 0.80f);
+    CascadeFrame cas(0.80f, CascadeFrame::Policy::Heuristic); tune_cascade_security(cas, 0.80f);
+    CascadeFrame exact(0.80f);                                tune_cascade_security(exact, 0.80f);
 
     // warmup
     for (auto& x : xs) { ss.forward(x); t.forward(x); s.forward(x); cas.run(x); }
@@ -58,7 +59,8 @@ int main(int argc, char** argv) {
     L("SS",      time_ns(xs, 5, [&](const Vec& x){ return ss.forward(x)[0]; }));
     L("T",       time_ns(xs, 5, [&](const Vec& x){ return t.forward(x)[0]; }));
     L("S",       time_ns(xs, 5, [&](const Vec& x){ return s.forward(x)[0]; }));
-    L("cascade", time_ns(xs, 5, [&](const Vec& x){ return cas.run(x).probs[0]; }));
+    L("casc-exact", time_ns(xs, 5, [&](const Vec& x){ return exact.run(x).probs[0]; }));
+    L("casc-heur",  time_ns(xs, 5, [&](const Vec& x){ return cas.run(x).probs[0]; }));
 
     // 単調性: 特徴量を +0.1 してもクラスが下がってはいけない
     long viol = 0, tot = 0;
@@ -90,8 +92,23 @@ int main(int argc, char** argv) {
     std::printf("anchors  %d/5 ok, mean conf %.2f\n", ok, conf / 5);
 
     // カスケード
-    cas.reset_stats(); int agree = 0;
-    for (auto& x : xs) { auto r = cas.run(x); agree += argmax(r.probs) == argmax(t.forward(x)); }
-    std::printf("cascade  relay_rate %.1f%%   agreement-with-full %.2f%%\n", 100.0 * cas.relay_rate(), 100.0 * agree / n);
+    //   exact     : 常にフルと同じ（食い違い 0 のはず）
+    //   heuristic : リレーの早期終了。全体の一致率と、早期終了した入力だけの一致率
+    {
+        int ex_diff = 0;
+        for (auto& x : xs) ex_diff += argmax(exact.run(x).probs) != argmax(t.forward(x));
+        std::printf("cascade  exact      class mismatches vs full: %d / %d\n", ex_diff, n);
+
+        cas.reset_stats();
+        int agree = 0, exit_n = 0, exit_ok = 0;
+        for (auto& x : xs) {
+            auto r = cas.run(x);
+            int want = argmax(t.forward(x));
+            agree += argmax(r.probs) == want;
+            if (r.used_relay) { ++exit_n; exit_ok += argmax(r.probs) == want; }
+        }
+        std::printf("cascade  heuristic  relay_rate %.1f%%   agreement-with-full %.2f%%   (early exits only: %.2f%%)\n",
+                    100.0 * cas.relay_rate(), 100.0 * agree / n, exit_n ? 100.0 * exit_ok / exit_n : 0.0);
+    }
     return 0;
 }

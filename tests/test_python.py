@@ -66,8 +66,16 @@ class FrameTests(unittest.TestCase):
 
 
 class CascadeTests(unittest.TestCase):
-    def test_paths(self):
-        with MylnCascade(threshold=0.8).tune_security() as c:
+    def test_exact_is_default_and_matches_frame(self):
+        with MylnCascade().tune_security() as c, MylnFrame("T").tune_security() as f:
+            for x in (IDLE, SCAN, RANSOM):
+                label, conf, relay = c.predict_with_path(x)
+                self.assertFalse(relay)
+                self.assertEqual(c.infer(x)[0], f.infer(x))
+            self.assertEqual(c.relay_rate, 0.0)
+
+    def test_heuristic_paths(self):
+        with MylnCascade(threshold=0.8, exact=False).tune_security() as c:
             label, conf, relay = c.predict_with_path(IDLE)
             self.assertEqual((label, relay), ("SAFE", True))
             label, conf, relay = c.predict_with_path(RANSOM)

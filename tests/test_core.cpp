@@ -261,10 +261,28 @@ static void test_component_apis() {
 // ── カスケード ──────────────────────────────────────────────
 static void test_cascade() {
     std::printf("cascade\n");
-    CascadeFrame cas(0.80f); tune_cascade_security(cas, 0.80f);
     Frame full = make_t(5); tune_security(full);
 
-    // 明確なアイドル / 明確な脅威はリレーで終わり、判定はフルと同じ
+    // 既定は Exact: 常にフルと完全に同じ出力（リレーは使わない）
+    {
+        CascadeFrame cas(0.80f); tune_cascade_security(cas, 0.80f);
+        CHECK(cas.policy() == CascadeFrame::Policy::Exact);
+        Lcg r{77};
+        int differ = 0;
+        for (int i = 0; i < 2000; ++i) {
+            Vec x(5); for (auto& v : x) v = r.next();
+            auto res = cas.run(x);
+            Vec f = full.forward(x);
+            if (res.used_relay) ++differ;
+            for (int k = 0; k < 5; ++k) if (res.probs[k] != f[k]) ++differ;
+        }
+        CHECK(differ == 0);
+        CHECK(cas.relay_hits() == 0 && cas.full_hits() == 2000);
+    }
+
+    // Heuristic: 明確なアイドル / 明確な脅威はリレーで終わり、判定はフルと同じ
+    CascadeFrame cas(0.80f, CascadeFrame::Policy::Heuristic);
+    tune_cascade_security(cas, 0.80f);
     auto idle = cas.run({0.00f, 0.05f, 0.01f, 0.00f, 0.10f});
     CHECK(idle.used_relay);
     CHECK(argmax(idle.probs) == 0);
@@ -286,11 +304,29 @@ static void test_cascade() {
     CHECK(cas.relay_hits() == 1 && cas.full_hits() == 1);
     CHECK(std::fabs(cas.relay_rate() - 0.5f) < 1e-6f);
 
-    // 閾値 1.0 以上は常にフル（確率が丸めで 1.0 ちょうどにならない限り）
+    // 閾値 1.0 は常にフル（確率が丸めで 1.0 ちょうどにならない限り）
     cas.set_threshold(1.0f);
     cas.reset_stats();
     cas.run({0.9f, 0.95f, 0.8f, 0.99f, 0.85f});
     CHECK(cas.full_hits() == 1);
+
+    // 設計上の前提の回帰テスト: 未観測の特徴量を 0 にしたリレー（同サイズ）は
+    // フルのクラスの下界で、proc=file=1.0 でも CRITICAL には届かない。
+    // → 「厳密に正しい早期終了」は成立しない（cascade.h のコメント参照）
+    {
+        Frame lo = make_t(5); tune_security(lo);
+        Mat W(lo.dim() * 5, 0.f); Vec b(lo.dim(), 0.f);
+        lo.router().set_slot(1, W, b);
+        lo.router().set_slot(3, W, b);
+        Lcg rr{4};
+        int viol = 0;
+        for (int i = 0; i < 20000; ++i) {
+            Vec x(5); for (auto& v : x) v = rr.next();
+            if (argmax(lo.forward(x)) > argmax(full.forward(x))) ++viol;
+        }
+        CHECK(viol == 0);
+        CHECK(argmax(lo.forward({1.f, 0.f, 0.f, 1.f, 0.f})) < 4);
+    }
 }
 
 // ── 地震チューナー ──────────────────────────────────────────
@@ -373,10 +409,13 @@ static void test_c_api() {
     CHECK(c != nullptr);
     CHECK(myln_cascade_new(2.0f) == nullptr);
     CHECK(myln_cascade_tune_security(c, 5) == 0);
-    int used = 0;
+    int used = 1;
+    CHECK(myln_cascade_infer_into(c, ransom, 5, out, &used) == 0 && used == 0);   // 既定は exact
+    CHECK(myln_cascade_set_policy(c, 0) == 0);                                     // 近似に切り替え
     CHECK(myln_cascade_infer_into(c, ransom, 5, out, &used) == 0 && used == 1);
     const float* cp = myln_cascade_infer(c, ransom, 5, &n, &used);
     CHECK(cp != nullptr && n == 5 && used == 1);
+    CHECK(myln_cascade_set_policy(nullptr, 1) == -1);
     CHECK(myln_cascade_infer_into(c, bad, 5, out, &used) == -1);
     CHECK(myln_cascade_relay_rate(c) > 0.f);
     myln_cascade_free(c);

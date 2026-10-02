@@ -86,6 +86,7 @@ class _CAPI:
         # カスケード API
         sig("myln_cascade_new", ctypes.c_void_p, [ctypes.c_float])
         sig("myln_cascade_free", None, [ctypes.c_void_p])
+        sig("myln_cascade_set_policy", ctypes.c_int, [ctypes.c_void_p, ctypes.c_int])
         sig("myln_cascade_tune_security", ctypes.c_int, [ctypes.c_void_p, ctypes.c_int])
         sig("myln_cascade_infer_into", ctypes.c_int,
             [ctypes.c_void_p, _c_float_p, ctypes.c_int, _c_float_p, _c_int_p])
@@ -228,26 +229,28 @@ class MylnFrame:
 # ── カスケード（2段リレー）────────────────────────────────────
 class MylnCascade:
     """
-    2段カスケード分類器。
-    リレー（SS 2頭: proc+file）で高速判定 →
-    確信度が低ければ フル（T 4頭）へ。
+    2段カスケード分類器（リレー: SS 2頭 proc+file / フル: T 4頭）。
 
-    リレーは proc / file しか見ない近似なので、フルと判定が一致するのは
-    「明確なアイドル / 明確な脅威」の入力に限られる（README の Cascade 節参照）。
+    exact=True（既定）: 常にフルの結果を返す（MylnFrame("T").tune_security() と同一）。
+    exact=False       : リレーで高速判定し、確信度 >= threshold ならそのまま、
+                        そうでなければフルへ。リレーは proc / file しか見ない近似なので、
+                        早期終了の判定がフルと食い違うことがある（README の Cascade 節参照）。
 
     Usage:
-        cas = MylnCascade(threshold=0.80).tune_security()
+        cas = MylnCascade(threshold=0.80, exact=False).tune_security()
         label, conf, used_relay = cas.predict_with_path([0.9,0.95,0.8,0.99,0.85])
     """
     SECURITY_CLASSES = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
-    def __init__(self, threshold: float = 0.80, lib_path: Optional[str] = None):
+    def __init__(self, threshold: float = 0.80, exact: bool = True,
+                 lib_path: Optional[str] = None):
         self._handle = None
         self._api    = _CAPI(lib_path)
         handle = self._api.lib.myln_cascade_new(ctypes.c_float(threshold))
         if not handle:
             raise MylnError(self._api.error())
         self._handle = handle
+        self._api.check(self._api.lib.myln_cascade_set_policy(handle, 1 if exact else 0))
 
     def close(self) -> None:
         if getattr(self, "_handle", None):

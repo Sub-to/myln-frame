@@ -41,8 +41,6 @@ Same frame. Different heads. Any device.
 
 ## Cascade: fast path + precise path
 
-When input is _obvious_, skip the heavy frame entirely.
-
 ```
 INPUT
   ↓
@@ -61,12 +59,25 @@ Real numbers on a Raspberry Pi 5 (v0.1.0):
 | Ransomware pattern | relay only | **9 µs** |
 | Mixed / borderline | relay → full | 118 µs |
 
-> **v0.2.0 note.** The whole frame got ~25× faster (see [Performance](#performance)),
-> so the relay now saves ~1 µs instead of ~100 µs. The relay only looks at
-> `proc` and `file`, so it is an _approximation_ of the full frame: it agrees
-> with it on the clear-cut anchors above, but on arbitrary inputs an early exit
-> can differ from the full frame's answer (`myln_bench` prints the agreement).
-> If you need the exact answer every time, use `MylnFrame` — it is now just as fast.
+**As of v0.2.0 the cascade is `Exact` by default** — it returns exactly what
+`MylnFrame("T").tune_security()` returns, and the relay stage above is opt-in
+(`Policy::Heuristic` / `MylnCascade(exact=False)` / `myln_cascade_set_policy(cas, 0)`).
+Why:
+
+1. **The relay is an approximation.** It only sees `proc` and `file`. On 40k uniform-random inputs,
+   only ~2% of its confident early exits match the full frame (it over-weights `proc`, 7× vs 5×);
+   on a mostly-quiet mix with 3% spikes it was ~52%. It fits the clear-cut anchors above and little else.
+2. **A _provably correct_ early exit doesn't exist for this model.** The tuned frame is monotone in every
+   feature, so a relay that treats the unseen features (`net`, `cpu`, `mem`) as 0 is a lower bound on the
+   full class (0 violations over 200k inputs, tested in `tests/test_core.cpp`). An exit would be exact when
+   that bound is already `CRITICAL` — but even `proc = file = 1.0` only reaches `MEDIUM`. Exact early exits: ~0%.
+   (And the bound is only valid at the same `dim` as the full frame, because attention is scaled by `1/√dim`,
+   which makes the relay as expensive as the full frame.)
+3. **It no longer pays.** After the speed-up the full frame costs ~1.6 µs and the heuristic cascade averages
+   _more_ than that (`myln_bench`: `casc-heur` vs `casc-exact`), because most inputs pay for relay + full.
+
+Heuristic mode is kept for people who want the old behaviour; `myln_bench` prints its relay rate and its
+agreement with the full frame so you can see what you are trading.
 
 ---
 
@@ -108,7 +119,7 @@ The Python bridge finds `build/libmyln.*` automatically; set `MYLN_LIB=/path/to/
 ```python
 from bridge.python.myln import MylnCascade
 
-cas = MylnCascade(threshold=0.80).tune_security()
+cas = MylnCascade(threshold=0.80, exact=False).tune_security()   # exact=True (default) always runs the full frame
 
 label, conf, used_relay = cas.predict_with_path(
     [0.9, 0.95, 0.8, 0.99, 0.85]   # [proc, cpu, net, file, mem]
@@ -174,7 +185,7 @@ print(frame.predict([0.9, 0.95, 0.8, 0.99, 0.85]))  # → CRITICAL
 
 # Cascade (relay + full)
 from bridge.python.myln import MylnCascade
-cas = MylnCascade(threshold=0.80).tune_security()
+cas = MylnCascade(threshold=0.80, exact=False).tune_security()   # exact=True (default) always runs the full frame
 label, conf, via_relay = cas.predict_with_path([0.5, 0.7, 0.3, 0.95, 0.6])
 # → HIGH  46%  (routed to full — mass writes but proc is moderate)
 ```
@@ -285,7 +296,7 @@ Human–AI coexistence shouldn't depend on a data center.
 - [x] Frame sizes — SS / T / S
 - [x] Swappable heads — Passthrough, Zero, Default
 - [x] Manual weight tuning — security monitoring (no training)
-- [x] 2-stage cascade — relay + confidence threshold + full
+- [x] 2-stage cascade — exact by default; relay + confidence threshold + full as opt-in heuristic
 - [x] Universal C API — Python, Node.js, Ruby, Go, Rust
 - [x] Python bridge — `MylnFrame`, `MylnCascade`
 - [x] Tests (ctest) + CI + benchmark, `find_package(myln)` install
@@ -317,10 +328,13 @@ Human–AI coexistence shouldn't depend on a data center.
 
 **Behaviour changes to be aware of**
 - NaN/Inf and wrong-size input raise instead of returning a class.
+- `CascadeFrame` now defaults to `Policy::Exact` (always the full frame's answer; relay stage skipped).
+  The old relay behaviour is `Policy::Heuristic` — see [Cascade](#cascade-fast-path--precise-path) for why.
+  `MylnCascade(exact=False)` and `myln_cascade_set_policy(cas, 0)` select it.
 - `CascadeFrame::run()` is no longer `const` (it never really was); counters are `long`.
 - C API: `myln_tune_*` / `myln_cascade_tune_security` return `int` (0 / -1) instead of `void`.
   `myln_infer` returns `NULL` on error. New: `myln_last_error`, `myln_infer_into`,
-  `myln_cascade_infer_into`, `myln_set_logit_scale`.
+  `myln_cascade_infer_into`, `myln_cascade_set_policy`, `myln_set_logit_scale`.
 - `-march=native` is now opt-in (`-DMYLN_NATIVE=ON`) so binaries are portable.
 - Python: `MylnError`, `close()` / context manager, `tune_earthquake()`, `tune_security(sharpness=…)`.
 
