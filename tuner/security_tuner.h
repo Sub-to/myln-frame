@@ -1,8 +1,9 @@
 #pragma once
-#include "../include/myln/frame.h"
-#include "../include/myln/cascade.h"
+#include <myln/frame.h>
+#include <myln/cascade.h>
 #include "../heads/passthrough_head.h"
 #include "../heads/zero_head.h"
+#include <stdexcept>
 
 // ── セキュリティ用手動チューニング ────────────────────────────
 //
@@ -48,6 +49,12 @@ struct SecurityTuneParams {
     // ── Center Line: クエリの強さ ──
     float query_strength = 3.0f;
 
+    // ── Center Line: 出力確率の鋭さ ──
+    // logits に掛ける係数。argmax（=判定クラス）は一切変わらず、確率だけが
+    // 鋭くなる。1.0 = 従来どおり（確信度 ~0.5）、3.0 で代表シナリオが
+    // ~0.7〜0.85 になり「確率 70% 以上でアラート」のような運用がしやすい。
+    float logit_scale = 1.0f;
+
     // ── Center Line: W_cls の傾きとバイアス ──
     // 閾値: SAFE<0.5<LOW<1.5<MED<2.8<HIGH<4.2<CRIT
     // score_i = slope_i * dim[0] + bias_i
@@ -60,7 +67,16 @@ struct SecurityTuneParams {
 };
 
 // ── メインのチューニング関数 ────────────────────────────────
+inline void check_security_in_dim(int in_dim) {
+    // 特徴量 index 0..4 を参照するので 5 次元以上が必要
+    if (in_dim < 5)
+        throw std::invalid_argument("MYLN security tuner needs in_dim >= 5 (proc,cpu,net,file,mem)");
+}
+
 inline void tune_security(Frame& frame, const SecurityTuneParams& p = {}) {
+    check_security_in_dim(p.in_dim);
+    if (frame.n_classes() != 5)
+        throw std::invalid_argument("MYLN security tuner needs a frame with n_classes == 5");
     int dim = frame.dim();
 
     // ━━ 1. Router: 明示初期化 → layer_norm を切り、特徴量を dim[0] に直接マップ ━━
@@ -120,6 +136,7 @@ inline void tune_security(Frame& frame, const SecurityTuneParams& p = {}) {
     W_cls[4 * dim + 0] = p.slope_crit; b_cls[4] = p.bias_crit;
 
     frame.center().set_cls(W_cls, b_cls);
+    frame.center().set_logit_scale(p.logit_scale);
 }
 
 // ── リレー専用チューニング（2頭: proc + file のみ） ──────────
@@ -132,6 +149,9 @@ inline void tune_security(Frame& frame, const SecurityTuneParams& p = {}) {
 //
 // 閾値は 0.5, 1.5, 2.8, 4.2 (フル版と同じ)
 inline void tune_security_relay(Frame& frame, int in_dim = 5) {
+    check_security_in_dim(in_dim);
+    if (frame.n_classes() != 5)
+        throw std::invalid_argument("MYLN security tuner needs a frame with n_classes == 5");
     int dim = frame.dim();
     frame.init_router(in_dim);
     frame.router().set_normalize(false);
@@ -180,10 +200,12 @@ inline void tune_security_relay(Frame& frame, int in_dim = 5) {
 }
 
 // ── CascadeFrame をまとめてチューニング ──────────────────────
-inline void tune_cascade_security(CascadeFrame& cascade, float threshold = 0.80f) {
+inline void tune_cascade_security(CascadeFrame& cascade, float threshold = 0.80f,
+                                  int in_dim = 5) {
     cascade.set_threshold(threshold);
-    tune_security_relay(cascade.relay());      // リレー: SS 2頭
-    tune_security      (cascade.full());       // フル:   T  4頭
+    tune_security_relay(cascade.relay(), in_dim);   // リレー: SS 2頭
+    SecurityTuneParams p; p.in_dim = in_dim;
+    tune_security      (cascade.full(), p);         // フル:   T  4頭
 }
 
 } // namespace myln

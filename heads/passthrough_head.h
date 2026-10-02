@@ -1,5 +1,5 @@
 #pragma once
-#include "../include/myln/head.h"
+#include <myln/head.h>
 
 namespace myln {
 
@@ -12,6 +12,9 @@ public:
     explicit PassthroughHead(std::string name) : name_(std::move(name)) {}
     std::string name() const override { return name_; }
     Vec forward(const Vec& x, int /*dim*/) override { return x; }
+    void forward_into(const float* x, float* y, int dim) override {
+        std::copy(x, x + dim, y);
+    }
 };
 
 } // namespace myln

@@ -1,7 +1,8 @@
 #pragma once
-#include "../include/myln/frame.h"
+#include <myln/frame.h>
 #include "../heads/earthquake_head.h"
 #include "../heads/zero_head.h"
+#include <stdexcept>
 
 // ── 地震監視チューナー ──────────────────────────────────────────
 //
@@ -24,39 +25,34 @@
 namespace myln {
 
 inline void tune_earthquake(Frame& frame, int in_dim = 5) {
+    // 特徴量 index 0..4 を参照する。dim[4] までルーターが運ぶので dim も 5 以上必要
+    if (in_dim < 5 || frame.dim() < 5)
+        throw std::invalid_argument("MYLN earthquake tuner needs in_dim >= 5 and frame dim >= 5");
+    if (frame.n_classes() != 5)
+        throw std::invalid_argument("MYLN earthquake tuner needs a frame with n_classes == 5");
     int dim = frame.dim();
     frame.init_router(in_dim);
     frame.router().set_normalize(false);
 
-    // ── Router: 各スロットに特徴量を割り当て ──
-    // slot 0: intensity → dim[0] に直接マップ
-    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
-      W[0*in_dim+0] = 7.0f;  // 震度×7 → CRITICALゾーン到達
-      frame.router().set_slot(0, W, b); }
+    // ── Router: 特徴量を生のまま dim[0..4] へ素通しする ──
+    // 重み付けは EarthquakeHead が 1 回だけ行う。
+    // （以前はルーターと頭の両方が w_int=7 等を掛けており、重みが二重に効いて
+    //   震度1の地震ですら CRITICAL になっていた）
+    for (int s = 0; s < 4; ++s) {
+        Mat W((size_t)dim * in_dim, 0.f); Vec b(dim, 0.f);
+        for (int k = 0; k < 5; ++k) W[(size_t)k * in_dim + k] = 1.0f;
+        frame.router().set_slot(s, W, b);
+    }
 
-    // slot 1: magnitude
-    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
-      W[0*in_dim+1] = 2.5f;
-      frame.router().set_slot(1, W, b); }
-
-    // slot 2: tsunami（単独でHIGH以上になる重み）
-    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
-      W[0*in_dim+3] = 4.0f;
-      frame.router().set_slot(2, W, b); }
-
-    // slot 3: depth_inv + freq（補正）
-    { Mat W(dim*in_dim,0.f); Vec b(dim,0.f);
-      W[0*in_dim+2] = 1.0f;
-      W[0*in_dim+4] = 0.5f;
-      frame.router().set_slot(3, W, b); }
-
-    // ── Heads: 全スロット EarthquakeHead（超軽量）──
+    // ── Heads: 全スロット EarthquakeHead（超軽量・同一重み）──
+    // 4 スロットが同じ脅威スコアを出し、Ring/Center はそれを損失なく集約する。
     frame.set_head(0, std::make_unique<EarthquakeHead>("intensity"));
     frame.set_head(1, std::make_unique<EarthquakeHead>("magnitude"));
     frame.set_head(2, std::make_unique<EarthquakeHead>("tsunami"));
     frame.set_head(3, std::make_unique<EarthquakeHead>("depth_freq"));
 
     // ── Ring: self 強め（各スロットの信号を守る）──
+    // 重みの合計 0.7 + 0.1 + 0.1 = 0.9 なので、閾値は 0.9 倍の尺度で効く
     frame.ring().set_near_identity(0.7f, 0.1f);
 
     // ── CENTER LINE ──

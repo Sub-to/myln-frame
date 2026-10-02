@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, cxx: g++ }
+          - { os: ubuntu-latest, cxx: clang++ }
+          - { os: macos-latest,  cxx: clang++ }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test (C++ core, C API, Python bridge)
+        run: ctest --test-dir build --output-on-failure
+      - name: Benchmark (informational)
+        run: ./build/myln_bench 2000
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (ASan + UBSan)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMYLN_SANITIZE=ON -DMYLN_BUILD_BENCH=OFF
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test (C++ core + C API)
+        run: ctest --test-dir build --output-on-failure -R '^core$'
+
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and consume via find_package
+        run: |
+          cmake -S . -B build -DMYLN_BUILD_TESTS=OFF -DMYLN_BUILD_BENCH=OFF -DMYLN_BUILD_EXAMPLES=OFF
+          cmake --build build --parallel
+          cmake --install build --prefix "$PWD/prefix"
+          mkdir smoke && cd smoke
+          cat > CMakeLists.txt <<'CMAKE'
+          cmake_minimum_required(VERSION 3.14)
+          project(smoke CXX)
+          find_package(myln REQUIRED)
+          add_executable(smoke main.cpp)
+          target_link_libraries(smoke PRIVATE myln::headers)
+          CMAKE
+          cat > main.cpp <<'CPP'
+          #include <myln/frame.h>
+          #include <myln/tuner/security_tuner.h>
+          #include <cstdio>
+          int main() {
+            auto f = myln::make_ss(5);
+            myln::tune_security(f);
+            auto p = f.forward({0.9f, 0.95f, 0.8f, 0.99f, 0.85f});
+            std::printf("%.2f\n", p[4]);
+            return p[4] > p[0] ? 0 : 1;
+          }
+          CPP
+          cmake -S . -B b -DCMAKE_PREFIX_PATH="$PWD/../prefix"
+          cmake --build b
+          ./b/smoke

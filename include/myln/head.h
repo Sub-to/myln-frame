@@ -13,6 +13,15 @@ public:
     virtual ~Head() = default;
     virtual std::string name() const = 0;
     virtual Vec forward(const Vec& x, int dim) = 0;
+
+    // ヒープ確保しない版。x, y は長さ dim。
+    // 既定実装は forward() を呼ぶだけなので、既存の Head はそのまま動く。
+    // 軽い頭は override してアロケーションを無くすと速い。
+    virtual void forward_into(const float* x, float* y, int dim) {
+        Vec out = forward(Vec(x, x + dim), dim);
+        std::copy(out.begin(), out.begin() + std::min<size_t>(out.size(), (size_t)dim), y);
+        for (size_t i = out.size(); i < (size_t)dim; ++i) y[i] = 0.f;
+    }
 };
 
 using HeadPtr = std::unique_ptr<Head>;
