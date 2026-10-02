@@ -1,5 +1,5 @@
 #pragma once
-#include "../include/myln/head.h"
+#include <myln/head.h>
 
 // ── Security Head ──────────────────────────────────────────
 // Specialized head for threat detection (chibitaru integration).

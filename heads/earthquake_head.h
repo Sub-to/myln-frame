@@ -1,5 +1,5 @@
 #pragma once
-#include "../include/myln/head.h"
+#include <myln/head.h>
 
 // ── EarthquakeHead ─────────────────────────────────────────────
 //
@@ -49,27 +49,38 @@ public:
 
     // ── forward: 行列積なし・加重和のみ ─────────────────────
     // ~0.1µs / call (PassthroughHead より軽い)
-    Vec forward(const Vec& x, int dim) override {
-        Vec y(dim, 0.f);
+    // x は先頭 n_in 個だけ読む（足りない特徴量は 0 扱い）
+    void score_into(const float* x, int n_in, float* y, int dim) const {
+        std::fill(y, y + dim, 0.f);
 
-        float intensity = x.size() > 0 ? x[0] : 0.f;
-        float magnitude = x.size() > 1 ? x[1] : 0.f;
-        float depth_inv = x.size() > 2 ? x[2] : 0.f;
-        float tsunami   = x.size() > 3 ? x[3] : 0.f;
-        float freq      = x.size() > 4 ? x[4] : 0.f;
+        float intensity = n_in > 0 ? x[0] : 0.f;
+        float magnitude = n_in > 1 ? x[1] : 0.f;
+        float depth_inv = n_in > 2 ? x[2] : 0.f;
+        float tsunami   = n_in > 3 ? x[3] : 0.f;
+        float freq      = n_in > 4 ? x[4] : 0.f;
 
         // dim[0] = 脅威スコア（CENTER LINE の閾値と対応）
         // 閾値: SAFE<0.5<LOW<1.5<MED<2.8<HIGH<4.2<CRIT
-        y[0] = intensity * w_int_
-             + magnitude * w_mag_
-             + depth_inv * w_depth_
-             + tsunami   * w_tsun_
-             + freq      * w_freq_;
+        if (dim > 0)
+            y[0] = intensity * w_int_
+                 + magnitude * w_mag_
+                 + depth_inv * w_depth_
+                 + tsunami   * w_tsun_
+                 + freq      * w_freq_;
 
         // dim[1] に津波フラグをそのまま保持（Ring で隣に伝播）
         if (dim > 1) y[1] = tsunami;
+        // layer_norm なし → 信号を保持
+    }
 
-        return y;  // layer_norm なし → 信号を保持
+    void forward_into(const float* x, float* y, int dim) override {
+        score_into(x, dim, y, dim);
+    }
+
+    Vec forward(const Vec& x, int dim) override {
+        Vec y((size_t)std::max(dim, 0), 0.f);
+        score_into(x.data(), (int)x.size(), y.data(), dim);
+        return y;
     }
 };
 

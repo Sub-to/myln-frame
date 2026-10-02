@@ -30,6 +30,14 @@ extern "C" {
 #  define MYLN_API __attribute__((visibility("default")))
 #endif
 
+/* ── エラー処理 ─────────────────────────────────────────────
+ * 失敗する関数は NULL（ポインタを返すもの）または -1（int を返すもの）を返し、
+ * 直前のエラーメッセージを myln_last_error() で取得できる。
+ * C++ 例外は C の境界を越えない。メッセージはスレッドごとに保持される。
+ * 成功した呼び出しではエラーはクリアされない（失敗の直後に読むこと）。
+ */
+MYLN_API const char* myln_last_error(void);
+
 /* ── フレームのライフサイクル ──────────────────────────────
  * size     : "SS" / "T" / "S"
  * n_classes: 出力クラス数（チビタルなら 5）
@@ -47,16 +55,28 @@ MYLN_API void  myln_free(void* frame);
  *   myln_tune_voice    : 音声・会話
  *   myln_tune_custom   : 設定ファイルから読み込み（将来）
  */
-MYLN_API void myln_tune_security(void* frame, int in_dim);
+MYLN_API int  myln_tune_security(void* frame, int in_dim);
+
+/* 出力確率の鋭さ（logits に掛ける係数, > 0）。判定クラスは変わらず、確信度だけが
+ * 変わる。既定 1.0。3.0 前後で代表シナリオが 0.7〜0.85 になる。 */
+MYLN_API int  myln_set_logit_scale(void* frame, float scale);
 
 /* ── 推論 ──────────────────────────────────────────────────
  * features : 入力特徴量配列 (float32)
  * n_in     : 入力次元数
  * out_n    : [out] 出力クラス数が書き込まれる
- * 戻り値   : クラス確率配列 (フレームが所有するバッファ)
- *            スレッドセーフではない。コピーが必要な場合は呼び出し側で行うこと。
+ * 戻り値   : クラス確率配列 (フレームが所有するバッファ)。失敗時は NULL。
+ *            1 つのフレームを複数スレッドから同時に使ってはいけない。
+ *            次の推論で上書きされるので、必要なら呼び出し側でコピーすること。
+ *
+ * NaN/Inf を含む入力、入力次元の不一致は失敗（NULL）になる。
  */
 MYLN_API const float* myln_infer(void* frame, const float* features, int n_in, int* out_n);
+
+/* 呼び出し側のバッファに書き込む版（フレームのバッファを共有しない）。
+ * out_probs には myln_n_classes() 個の float を確保しておく。
+ * 戻り値: 0 = 成功 / -1 = 失敗（myln_last_error 参照） */
+MYLN_API int myln_infer_into(void* frame, const float* features, int n_in, float* out_probs);
 
 /* ── メタ情報 ──────────────────────────────────────────────*/
 MYLN_API const char* myln_tag      (void* frame);
@@ -68,7 +88,7 @@ MYLN_API const char* myln_version  (void);
  * features: [intensity/7, magnitude/9, depth_inv, tsunami, freq/10]
  * 出力クラス: SAFE / LOW / MEDIUM / HIGH / CRITICAL
  */
-MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
+MYLN_API int  myln_tune_earthquake(void* frame, int in_dim);
 
 /* ── カスケード（2段リレー）API ────────────────────────────
  * リレー（SS 2頭）で高速判定 → 曖昧なら フル（T 4頭）へ
@@ -76,11 +96,14 @@ MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
  */
 MYLN_API void*       myln_cascade_new      (float threshold);
 MYLN_API void        myln_cascade_free     (void* cas);
-MYLN_API void        myln_cascade_tune_security(void* cas, int in_dim);
+MYLN_API int         myln_cascade_tune_security(void* cas, int in_dim);
 MYLN_API const float* myln_cascade_infer   (void* cas, const float* features,
                                             int n_in, int* out_n,
                                             int* out_used_relay);
 MYLN_API float       myln_cascade_relay_rate(void* cas); // リレー通過率
+MYLN_API int         myln_cascade_infer_into(void* cas, const float* features, int n_in,
+                                             float* out_probs /* 5 個 */,
+                                             int* out_used_relay);
 
 #ifdef __cplusplus
 }

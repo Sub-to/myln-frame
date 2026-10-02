@@ -1,6 +1,7 @@
 #pragma once
 #include "frame.h"
 #include <algorithm>
+#include <stdexcept>
 
 // ── CascadeFrame ───────────────────────────────────────────
 //
@@ -26,20 +27,26 @@ class CascadeFrame {
     Frame relay_;       // 軽い: SS / 2頭(proc+file)
     Frame full_;        // 重い: T  / 4頭フル
     float threshold_;   // 確信度の閾値（0.0〜1.0）
-    mutable int  relay_hits_  = 0;  // リレーで終わった回数
-    mutable int  full_hits_   = 0;  // フルまで回った回数
+    long relay_hits_ = 0;  // リレーで終わった回数
+    long full_hits_  = 0;  // フルまで回った回数
 
 public:
     CascadeFrame(float threshold = 0.80f)
         : relay_(SS, 5)   // 5クラス固定（セキュリティ用）
         , full_ (T,  5)
         , threshold_(threshold)
-    {}
+    {
+        set_threshold(threshold);
+    }
 
     // ── チューニング用アクセス ──────────────────────────────
     Frame& relay() { return relay_; }
     Frame& full()  { return full_;  }
-    void   set_threshold(float t) { threshold_ = t; }
+    void   set_threshold(float t) {
+        if (!(t >= 0.f && t <= 1.f))
+            throw std::invalid_argument("CascadeFrame: threshold must be in [0, 1]");
+        threshold_ = t;
+    }
     float  threshold() const { return threshold_; }
 
     // ── 推論 ───────────────────────────────────────────────
@@ -49,19 +56,28 @@ public:
         bool used_relay;
     };
 
-    Result run(const Vec& input) const {
+    // 内部の Frame が作業バッファを使うので、複数スレッドから同時に呼ばないこと。
+    Result run(const Vec& input) {
+        Result r{Vec(5), false};
+        r.used_relay = run_into(input.data(), (int)input.size(), r.probs.data());
+        return r;
+    }
+
+    // ヒープ確保なし版。probs は 5 個。戻り値: リレーで終わったか。
+    bool run_into(const float* features, int n_in, float* probs) {
         // 1. リレー（SS・2頭）で高速判定
-        auto probs = const_cast<Frame&>(relay_).forward(input);
-        float conf = *std::max_element(probs.begin(), probs.end());
+        relay_.forward_into(features, n_in, probs);
+        float conf = *std::max_element(probs, probs + 5);
 
         if (conf >= threshold_) {
-            relay_hits_++;
-            return {probs, true};
+            ++relay_hits_;
+            return true;
         }
 
         // 2. 確信が低い → フル（T・4頭）で精密判定
-        full_hits_++;
-        return {const_cast<Frame&>(full_).forward(input), false};
+        ++full_hits_;
+        full_.forward_into(features, n_in, probs);
+        return false;
     }
 
     // monitor.py 互換: Vec だけ返すシンプル版
@@ -70,10 +86,10 @@ public:
     }
 
     // ── 統計 ───────────────────────────────────────────────
-    int   relay_hits()  const { return relay_hits_;  }
-    int   full_hits()   const { return full_hits_;   }
+    long  relay_hits()  const { return relay_hits_;  }
+    long  full_hits()   const { return full_hits_;   }
     float relay_rate()  const {
-        int total = relay_hits_ + full_hits_;
+        long total = relay_hits_ + full_hits_;
         return total ? (float)relay_hits_ / total : 0.f;
     }
     void  reset_stats() { relay_hits_ = full_hits_ = 0; }

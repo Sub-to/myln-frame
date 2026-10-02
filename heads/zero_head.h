@@ -1,5 +1,5 @@
 #pragma once
-#include "../include/myln/head.h"
+#include <myln/head.h>
 
 namespace myln {
 
@@ -13,6 +13,9 @@ public:
     std::string name() const override { return "zero"; }
     Vec forward(const Vec& /*x*/, int dim) override {
         return Vec(dim, 0.f);
+    }
+    void forward_into(const float* /*x*/, float* y, int dim) override {
+        std::fill(y, y + dim, 0.f);
     }
 };
 

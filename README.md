@@ -31,9 +31,11 @@ Same frame. Different heads. Any device.
 |---|---|---|---|
 | dim | 16 | 64 | 128 |
 | RAM | ~1 MB | ~20 MB | ~100 MB |
-| Latency | < 0.1 ms | < 1 ms | < 5 ms |
+| Latency¹ | ~0.6 µs | ~1.6 µs | ~2.8 µs |
 | Best for | microcontrollers / SBC | old PC / edge | laptop / server |
 | GPU needed | ✗ | ✗ | ✗ |
+
+¹ Tuned security frame, one inference, x86 Xeon @ 2.1 GHz, `-O3`, measured with `myln_bench` (see [Performance](#performance)).
 
 ---
 
@@ -44,20 +46,27 @@ When input is _obvious_, skip the heavy frame entirely.
 ```
 INPUT
   ↓
-[RELAY]  ← SS, 2 heads, ~9 µs
+[RELAY]  ← SS, 2 heads (proc + file)
   ↓
 confidence ≥ 80%?
   ├─ YES → output immediately          ← clear threats / idle
-  └─ NO  → [FULL]  T, 4 heads, ~109µs ← ambiguous cases
+  └─ NO  → [FULL]  T, 4 heads          ← ambiguous cases
 ```
 
-Real numbers on a Raspberry Pi 5:
+Real numbers on a Raspberry Pi 5 (v0.1.0):
 
 | Case | Path | Latency |
 |---|---|---|
 | Idle / all-clear | relay only | **9 µs** |
 | Ransomware pattern | relay only | **9 µs** |
 | Mixed / borderline | relay → full | 118 µs |
+
+> **v0.2.0 note.** The whole frame got ~25× faster (see [Performance](#performance)),
+> so the relay now saves ~1 µs instead of ~100 µs. The relay only looks at
+> `proc` and `file`, so it is an _approximation_ of the full frame: it agrees
+> with it on the clear-cut anchors above, but on arbitrary inputs an early exit
+> can differ from the full frame's answer (`myln_bench` prints the agreement).
+> If you need the exact answer every time, use `MylnFrame` — it is now just as fast.
 
 ---
 
@@ -68,11 +77,31 @@ Real numbers on a Raspberry Pi 5:
 ```bash
 git clone https://github.com/Sub-to/myln-frame.git
 cd myln-frame
-mkdir build && cd build
-cmake .. && make myln
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure   # C++ core, C API, Python bridge
 # → build/libmyln.dylib  (macOS)
 # → build/libmyln.so     (Linux)
 ```
+
+| CMake option | Default | |
+|---|---|---|
+| `MYLN_NATIVE` | OFF | `-march=native` (not faster in our measurements, and the binary only runs on the same CPU family) |
+| `MYLN_BUILD_TESTS` / `_BENCH` / `_EXAMPLES` | ON | |
+| `MYLN_SANITIZE` | OFF | AddressSanitizer + UBSan |
+
+Use it from another CMake project (header-only core, or the C library):
+
+```bash
+cmake --install build --prefix /usr/local
+```
+```cmake
+find_package(myln REQUIRED)
+target_link_libraries(app PRIVATE myln::headers)   # #include <myln/frame.h>
+# or: myln::myln                                    # libmyln + C API
+```
+
+The Python bridge finds `build/libmyln.*` automatically; set `MYLN_LIB=/path/to/libmyln.so` to point elsewhere.
 
 ### Python
 
@@ -119,6 +148,23 @@ The C API works with Python (ctypes), Node.js (ffi-napi), Ruby (Fiddle), Go (cgo
 
 **Output classes:** `SAFE` · `LOW` · `MEDIUM` · `HIGH` · `CRITICAL`
 
+**Confidence calibration.** Out of the box the five class probabilities are soft
+(the winning class is ~0.5 on the anchor scenarios). `sharpness` scales the
+logits: the predicted class never changes, only the confidence does.
+
+```python
+frame = MylnFrame(size="T").tune_security(sharpness=3.0)
+frame.predict_with_score([0.9, 0.95, 0.8, 0.99, 0.85])   # → ('CRITICAL', 0.71)
+```
+```cpp
+myln::SecurityTuneParams p; p.logit_scale = 3.0f;        // C++
+myln_set_logit_scale(frame, 3.0f);                        // C API
+```
+
+**Input safety.** Features must be finite. NaN/Inf, a wrong feature count, or an
+overflowing input is rejected (`std::invalid_argument` / `ValueError` / `NULL`
+from the C API + `myln_last_error()`) instead of silently producing a class.
+
 ```python
 # Full frame (single model)
 from bridge.python.myln import MylnFrame
@@ -154,7 +200,7 @@ include/myln/
   ring_attn.h     — Ring Attention: lateral sharing between heads
   center_line.h   — aggregation + classification (W_cls)
   cascade.h       — CascadeFrame: relay → confidence → full
-  math_ops.h      — Vec / Mat primitives
+  math_ops.h      — Vec / Mat primitives, allocation-free kernels, PackedMat (sparse/dense)
 
 heads/
   passthrough_head.h   — identity (signal passes unchanged)
@@ -168,7 +214,36 @@ tuner/
 bridge/
   myln_c_api.h/.cpp    — universal C API
   python/myln.py       — Python ctypes wrapper (MylnFrame, MylnCascade)
+
+tests/                 — C++ core / C API tests, Python bridge tests (ctest)
+bench/bench.cpp        — latency, monotonicity, anchors, cascade fidelity
+cmake/                 — find_package(myln) config
+.github/workflows/     — CI: gcc / clang / macOS, ASan+UBSan, install smoke test
 ```
+
+---
+
+## Performance
+
+`myln_bench` (tuned security frame, 5000 random inputs × 5, x86 Xeon @ 2.1 GHz, `-O3`, mean per inference):
+
+| Frame | v0.1.0 | v0.2.0 | speed-up |
+|---|---|---|---|
+| MYLN-SS | 3.0 µs | 0.62 µs | **4.8×** |
+| MYLN-T | 39 µs | 1.6 µs | **24×** |
+| MYLN-S | 150 µs | 2.7 µs | **55×** |
+
+What changed, with **identical decisions** (the tests replay ~6000 classes recorded from v0.1.0 and require 0 mismatches):
+
+- **Sparse weights.** Hand-tuned layers are almost all zeros (identity / pick-one-feature). `PackedMat` stores
+  them in CSR form when ≤35% non-zero and skips the multiply-by-zero; random-weight layers stay dense.
+- **No allocation in the hot path.** `Frame::forward_into()` runs router → heads → ring → center on
+  pre-allocated buffers. Heads get `forward_into()` (default implementation falls back to `forward()`, so
+  existing custom heads keep working).
+- **Center line.** `Wkᵀq` is precomputed when the query/keys are set, so attention scoring is four dot products
+  instead of four dim×dim matrix multiplies. Ring attention no longer concatenates `[self|left|right]` per slot.
+
+Run it yourself: `./build/myln_bench` (or `myln_bench 20000`).
 
 ---
 
@@ -213,10 +288,41 @@ Human–AI coexistence shouldn't depend on a data center.
 - [x] 2-stage cascade — relay + confidence threshold + full
 - [x] Universal C API — Python, Node.js, Ruby, Go, Rust
 - [x] Python bridge — `MylnFrame`, `MylnCascade`
+- [x] Tests (ctest) + CI + benchmark, `find_package(myln)` install
+- [x] Input validation, error-safe C API (`myln_last_error`)
 - [ ] `.mhead` file format — portable head configs
 - [ ] WeatherHead — typhoon / disaster alert
 - [ ] CLI tool — `myln run --frame SS --head security.mhead`
 - [ ] Distributed mode — heads over socket / gRPC
+
+---
+
+## Changelog
+
+### 0.2.0
+
+**Faster, same answers** — see [Performance](#performance).
+
+**Fixes**
+- `tune_earthquake`: slot weights were applied twice (router _and_ head), so even a 震度1 quake came out
+  `CRITICAL`. The router now passes features through and `EarthquakeHead` weights them once. Note that the
+  shipped weights (`w_int=7`, `w_mag=2.5`, `w_depth=1.0`, …) still alert earlier than the class table in
+  `earthquake_tuner.h` describes (震度3 → `CRITICAL`); recalibrating them needs real seismic data.
+- `tune_security` with `in_dim < 5` wrote to the wrong feature rows; it now throws.
+- A tuned frame fed a different number of features used to silently re-initialise the router with random
+  weights. It now throws.
+- C API: C++ exceptions could cross the C boundary; null handles crashed. All entry points are guarded.
+  `myln_version()` now reports the real version.
+- The `__pycache__` that was committed is gone from the tree.
+
+**Behaviour changes to be aware of**
+- NaN/Inf and wrong-size input raise instead of returning a class.
+- `CascadeFrame::run()` is no longer `const` (it never really was); counters are `long`.
+- C API: `myln_tune_*` / `myln_cascade_tune_security` return `int` (0 / -1) instead of `void`.
+  `myln_infer` returns `NULL` on error. New: `myln_last_error`, `myln_infer_into`,
+  `myln_cascade_infer_into`, `myln_set_logit_scale`.
+- `-march=native` is now opt-in (`-DMYLN_NATIVE=ON`) so binaries are portable.
+- Python: `MylnError`, `close()` / context manager, `tune_earthquake()`, `tune_security(sharpness=…)`.
 
 ---
 

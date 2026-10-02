@@ -1,6 +1,9 @@
 build/
+build-*/
 *.o
 *.a
 *.mhead
 *.bin
 .DS_Store
+__pycache__/
+*.pyc
