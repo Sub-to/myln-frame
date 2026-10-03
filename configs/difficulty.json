@@ -1,0 +1,33 @@
+{
+  "schema": "myln-tune/1",
+  "name": "difficulty",
+  "description": "Request difficulty as a single frame. Same behaviour as tune_difficulty() with default params.",
+  "classes": ["CHAT", "EASY", "MEDIUM", "HARD", "EXTREME"],
+  "features": ["tech", "length", "steps", "scope", "reasoning"],
+  "in_dim": 5,
+  "router": {
+    "normalize": false,
+    "slots": [
+      { "terms": [[0, 0, 5.0]] },
+      { "terms": [[0, 2, 5.0]] },
+      { "terms": [[0, 3, 5.0]] },
+      { "terms": [[0, 1, 2.5], [0, 4, 2.5]] }
+    ]
+  },
+  "heads": [
+    { "type": "passthrough", "name": "tech" },
+    { "type": "passthrough", "name": "steps" },
+    { "type": "passthrough", "name": "scope" },
+    { "type": "passthrough", "name": "length_reasoning" }
+  ],
+  "ring": { "mode": "near_identity", "self": 0.6, "neighbor": 0.2 },
+  "center": {
+    "normalize_agg": false,
+    "key": "identity",
+    "query": [[0, 3.0]],
+    "cls": {
+      "terms": [[0, 0, -1.0], [1, 0, 0.5], [2, 0, 1.5], [3, 0, 2.5], [4, 0, 3.5]],
+      "bias":  [[0, 9.25], [1, 8.5], [2, 7.0], [3, 4.2], [4, 0.0]]
+    }
+  }
+}

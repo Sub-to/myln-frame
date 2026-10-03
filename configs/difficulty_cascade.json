@@ -1,0 +1,66 @@
+{
+  "schema": "myln-tune/1",
+  "name": "difficulty-cascade",
+  "description": "Request difficulty for the Pi router (2-stage cascade). Same behaviour as tune_cascade_difficulty(). Slots: tech / steps / scope / length+reasoning.",
+  "classes": ["CHAT", "EASY", "MEDIUM", "HARD", "EXTREME"],
+  "features": ["tech", "length", "steps", "scope", "reasoning"],
+  "threshold": 0.80,
+  "relay": {
+    "size": "SS",
+    "in_dim": 5,
+    "router": {
+      "normalize": false,
+      "slots": [
+        { "terms": [[0, 0, 7.0]] },
+        { },
+        { "terms": [[0, 3, 5.0]] },
+        { }
+      ]
+    },
+    "heads": [
+      { "type": "passthrough", "name": "relay/tech" },
+      "zero",
+      { "type": "passthrough", "name": "relay/scope" },
+      "zero"
+    ],
+    "ring": { "mode": "near_identity", "self": 0.9, "neighbor": 0.05 },
+    "center": {
+      "normalize_agg": false,
+      "key": "identity",
+      "query": [[0, 4.0]],
+      "cls": {
+        "terms": [[0, 0, -2.0], [1, 0, 1.0], [2, 0, 3.0], [3, 0, 5.0], [4, 0, 7.0]],
+        "bias":  [[0, 18.5], [1, 17.0], [2, 14.0], [3, 8.4], [4, 0.0]]
+      }
+    }
+  },
+  "full": {
+    "size": "T",
+    "in_dim": 5,
+    "router": {
+      "normalize": false,
+      "slots": [
+        { "terms": [[0, 0, 5.0]] },
+        { "terms": [[0, 2, 5.0]] },
+        { "terms": [[0, 3, 5.0]] },
+        { "terms": [[0, 1, 2.5], [0, 4, 2.5]] }
+      ]
+    },
+    "heads": [
+      { "type": "passthrough", "name": "tech" },
+      { "type": "passthrough", "name": "steps" },
+      { "type": "passthrough", "name": "scope" },
+      { "type": "passthrough", "name": "length_reasoning" }
+    ],
+    "ring": { "mode": "near_identity", "self": 0.6, "neighbor": 0.2 },
+    "center": {
+      "normalize_agg": false,
+      "key": "identity",
+      "query": [[0, 3.0]],
+      "cls": {
+        "terms": [[0, 0, -1.0], [1, 0, 0.5], [2, 0, 1.5], [3, 0, 2.5], [4, 0, 3.5]],
+        "bias":  [[0, 9.25], [1, 8.5], [2, 7.0], [3, 4.2], [4, 0.0]]
+      }
+    }
+  }
+}

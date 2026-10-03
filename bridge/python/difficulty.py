@@ -1,11 +1,14 @@
 """
 MYLN 難易度判定 (Pi ルーター用)
 ================================
-依頼文 → 5特徴量 → MYLN cascade (security_tuner を流用) → 難易度 0〜4
+依頼文 → 5特徴量 → MYLN cascade (difficulty チューナー) → 難易度 0〜4
 
-security_tuner の5入力/5クラスを、次のように読み替えている(C++は無改造):
-  入力 [proc, cpu, net, file, mem]  →  [技術度, 長さ, 手数, 影響範囲(最重要), 推論度]
-  出力 SAFE/LOW/MEDIUM/HIGH/CRITICAL →  0=雑談 1=易 2=中 3=難 4=最難
+  入力 [tech, length, steps, scope(最重要), reasoning]
+        =[技術度, 長さ, 手数, 影響範囲, 推論度]   各 0.0〜1.0
+  出力 0=CHAT(雑談) 1=EASY(易) 2=MEDIUM(中) 3=HARD(難) 4=EXTREME(最難)
+
+チューナーは tuner/difficulty_tuner.h(MylnCascade.tune_difficulty)。
+同じ設定は configs/difficulty_cascade.json からも再現できる(MylnCascade.tune_custom)。
 
 使い方: echo '{"text":"..."}' | python3 difficulty.py   → {"level":2,"conf":0.8,"relay":true,"features":[...]}
 """
@@ -52,7 +55,7 @@ def features(text: str) -> list:
     ]
 
 
-_cas = MylnCascade(threshold=0.80).tune_security()
+_cas = MylnCascade(threshold=0.80).tune_difficulty()
 
 
 def classify(text: str) -> dict:

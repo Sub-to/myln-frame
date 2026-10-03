@@ -43,6 +43,13 @@ def _find_lib() -> str:
     )
 
 
+# ── 難易度判定チューナー（tuner/difficulty_tuner.h）の定数 ──
+# 入力 features: [tech, length, steps, scope, reasoning]  各 0.0〜1.0
+DIFFICULTY_CLASSES    = ["CHAT", "EASY", "MEDIUM", "HARD", "EXTREME"]
+DIFFICULTY_CLASSES_JA = ["雑談", "易", "中", "難", "最難"]
+DIFFICULTY_FEATURES   = ["tech", "length", "steps", "scope", "reasoning"]
+
+
 # ── C API バインディング ──────────────────────────────────
 class _CAPI:
     def __init__(self, lib_path: Optional[str] = None):
@@ -90,6 +97,13 @@ class _CAPI:
         lib.myln_cascade_relay_rate.restype  = ctypes.c_float
         lib.myln_cascade_relay_rate.argtypes = [ctypes.c_void_p]
 
+        # 難易度判定チューナー（古い libmyln には無いので、あれば束縛）
+        if hasattr(lib, "myln_tune_difficulty"):
+            lib.myln_tune_difficulty.restype  = None
+            lib.myln_tune_difficulty.argtypes = [ctypes.c_void_p]
+            lib.myln_cascade_tune_difficulty.restype  = None
+            lib.myln_cascade_tune_difficulty.argtypes = [ctypes.c_void_p]
+
         # 汎用チューニング API（古い libmyln には無いので、あれば束縛）
         if hasattr(lib, "myln_tune_custom"):
             lib.myln_tune_custom.restype  = ctypes.c_int
@@ -101,10 +115,13 @@ class _CAPI:
 
         self.lib = lib
 
+    def require(self, fn_name: str) -> None:
+        if not hasattr(self.lib, fn_name):
+            raise RuntimeError(f"この libmyln は {fn_name} に未対応です。再ビルドしてください。")
+
     def tune_custom(self, fn_name: str, handle, config) -> dict:
         """JSON設定(パス / JSON文字列 / dict)を適用し、解析済みの設定dictを返す。"""
-        if not hasattr(self.lib, fn_name):
-            raise RuntimeError("この libmyln は汎用チューニングに未対応です。再ビルドしてください。")
+        self.require(fn_name)
         if isinstance(config, dict):
             text = json.dumps(config)
         else:
@@ -155,6 +172,18 @@ class MylnFrame:
         """セキュリティ監視用に重みを手動チューニングする。"""
         self._api.lib.myln_tune_security(self._handle, in_dim)
         return self  # メソッドチェーン用
+
+    def tune_difficulty(self) -> "MylnFrame":
+        """
+        依頼文の難易度判定用にチューニングする（n_classes=5 のフレームで使う）。
+        features: [tech, length, steps, scope, reasoning]（各 0.0〜1.0）
+        クラス: 0=CHAT(雑談) 1=EASY(易) 2=MEDIUM(中) 3=HARD(難) 4=EXTREME(最難)
+        """
+        self._api.require("myln_tune_difficulty")
+        self._api.lib.myln_tune_difficulty(self._handle)
+        self.classes = list(DIFFICULTY_CLASSES)
+        self.features = list(DIFFICULTY_FEATURES)
+        return self
 
     def tune_custom(self, config) -> "MylnFrame":
         """
@@ -236,6 +265,18 @@ class MylnCascade:
 
     def tune_security(self, in_dim: int = 5) -> "MylnCascade":
         self._api.lib.myln_cascade_tune_security(self._handle, in_dim)
+        return self
+
+    def tune_difficulty(self) -> "MylnCascade":
+        """
+        依頼文の難易度判定用にチューニングする（リレー: tech+scope / フル: 4スロット）。
+        features: [tech, length, steps, scope, reasoning]（各 0.0〜1.0）
+        クラス: 0=CHAT(雑談) 1=EASY(易) 2=MEDIUM(中) 3=HARD(難) 4=EXTREME(最難)
+        """
+        self._api.require("myln_cascade_tune_difficulty")
+        self._api.lib.myln_cascade_tune_difficulty(self._handle)
+        self.classes = list(DIFFICULTY_CLASSES)
+        self.features = list(DIFFICULTY_FEATURES)
         return self
 
     def tune_custom(self, config) -> "MylnCascade":
