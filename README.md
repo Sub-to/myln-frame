@@ -179,7 +179,7 @@ from bridge.python.myln import MylnCascade, DIFFICULTY_CLASSES
 
 cas = MylnCascade(threshold=0.80).tune_difficulty()
 probs, used_relay = cas.infer([0.67, 0.14, 1.0, 1.0, 1.0])   # [tech, length, steps, scope, reasoning]
-print(DIFFICULTY_CLASSES[probs.index(max(probs))])            # → HARD
+print(DIFFICULTY_CLASSES[probs.index(max(probs))])            # → EXTREME
 ```
 
 `bridge/python/difficulty.py` is a complete example: it extracts the five features from Japanese/English
