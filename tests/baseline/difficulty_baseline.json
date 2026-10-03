@@ -1,0 +1,197 @@
+[
+ {
+  "text": "こんにちは",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.01,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "今日の天気は?",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.02,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "この関数の名前を変えて",
+  "level": 0,
+  "conf": 0.422,
+  "relay": false,
+  "features": [
+   0.33,
+   0.03,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "main.pyのバグの原因を調べて直して",
+  "level": 1,
+  "conf": 0.459,
+  "relay": false,
+  "features": [
+   0.33,
+   0.05,
+   0.0,
+   0.0,
+   0.67
+  ]
+ },
+ {
+  "text": "まずプロジェクト全体の設計を調査して、次にsrc/とtests/を複数ファイルでリファクタして、最後にテストして",
+  "level": 3,
+  "conf": 0.446,
+  "relay": false,
+  "features": [
+   0.67,
+   0.14,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "text": "ありがとう、助かりました",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.03,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "おすすめのラーメン屋を教えて",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.04,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "README.mdの誤字を直して",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.04,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "このエラーの意味を教えて: TypeError: undefined is not a function",
+  "level": 4,
+  "conf": 0.984,
+  "relay": true,
+  "features": [
+   1.0,
+   0.13,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "app.tsとutils.tsを読んで、なぜ起動時にクラッシュするのか原因を調査して修正して",
+  "level": 0,
+  "conf": 0.81,
+  "relay": true,
+  "features": [
+   0.0,
+   0.12,
+   0.0,
+   0.0,
+   1.0
+  ]
+ },
+ {
+  "text": "リポジトリ全体をTypeScriptからRustへ移行する計画を立てて、複数のディレクトリに分けて段階的に実装して、最後にテストを書いて",
+  "level": 4,
+  "conf": 0.974,
+  "relay": true,
+  "features": [
+   1.0,
+   0.17,
+   0.33,
+   1.0,
+   0.0
+  ]
+ },
+ {
+  "text": "放物線の軌道を想定して、初速30m/s・角度45度のときの到達距離を計算して図にして",
+  "level": 4,
+  "conf": 0.982,
+  "relay": true,
+  "features": [
+   1.0,
+   0.1,
+   0.0,
+   0.5,
+   1.0
+  ]
+ },
+ {
+  "text": "Compare the trade-offs between Redis and Postgres for session storage, then design the architecture across the whole service",
+  "level": 3,
+  "conf": 0.422,
+  "relay": false,
+  "features": [
+   0.0,
+   0.31,
+   0.33,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "text": "pythonでフィボナッチ数列を出力するスクリプトを書いて",
+  "level": 1,
+  "conf": 0.418,
+  "relay": false,
+  "features": [
+   0.33,
+   0.07,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "1. データを読み込み 2. 集計して 3. グラフにして 4. レポートに出力して。条件は月ごと、想定は欠損なし",
+  "level": 2,
+  "conf": 0.421,
+  "relay": false,
+  "features": [
+   0.0,
+   0.14,
+   1.0,
+   0.5,
+   0.67
+  ]
+ }
+]
