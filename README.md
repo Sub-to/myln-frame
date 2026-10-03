@@ -226,7 +226,7 @@ the security tuner against its saved probabilities, and that invalid configs are
 
 | Project | Description |
 |---|---|
-| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + worldwide earthquake alerts — USGS + JMA, EarthquakeHead (~0.1 µs) |
+| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + worldwide earthquake alerts — USGS + JMA, uses the separate [myln-heads-earthquake](https://github.com/Sub-to/myln-heads-earthquake) package |
 
 ---
 
@@ -248,12 +248,10 @@ include/myln/
 heads/
   passthrough_head.h   — identity (signal passes unchanged)
   zero_head.h          — silence (disabled slot)
-  earthquake_head.h    — ultra-light seismic classifier (~0.1 µs, no matrix multiply)
 
 tuner/
   security_tuner.h     — manual weight tuning, no training needed
   difficulty_tuner.h   — request difficulty: CHAT / EASY / MEDIUM / HARD / EXTREME
-  earthquake_tuner.h   — seismic intensity → SAFE/LOW/MEDIUM/HIGH/CRITICAL
 
 bridge/
   myln_c_api.h/.cpp    — universal C API
@@ -278,8 +276,11 @@ frame.set_head(2, std::make_unique<PassthroughHead>("file"));
 frame.set_head(3, std::make_unique<DefaultHead>());         // learned head
 ```
 
-**Shipped:**
-- `EarthquakeHead` — seismic intensity classifier, powers [myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor)
+**Shipped in the core:** `PassthroughHead`, `ZeroHead`, `DefaultHead`.
+
+**Separate packages** (built on the core, kept out of it):
+- [`myln-heads-earthquake`](https://github.com/Sub-to/myln-heads-earthquake) — `EarthquakeHead` + tuner, seismic severity classifier (~0.1 µs); powers [myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor).
+  Extension packages configure a frame through `myln_frame_native()` (C API) / `MylnFrame.native_ptr` (Python).
 
 **Future heads (planned):**
 - `WeatherHead` — typhoon / disaster alert scoring
