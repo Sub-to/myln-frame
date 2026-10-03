@@ -74,6 +74,14 @@ MYLN_API const char* myln_last_error (void);
  */
 MYLN_API const float* myln_infer(void* frame, const float* features, int n_in, int* out_n);
 
+/* ── 拡張パッケージ用フック ────────────────────────────────
+ * myln_new() で作った frame の中身 (myln::Frame*) を返す。
+ * 別パッケージ(例: ドメイン専用のヘッド/チューナー)が C++ で Frame を直接設定するための口。
+ * 返したポインタは frame と同じ寿命。呼び出し側は同じバージョンの include/myln で
+ * コンパイルされている必要がある(ABI互換はヘッダ共有が前提)。
+ */
+MYLN_API void* myln_frame_native(void* frame);
+
 /* ── メタ情報 ──────────────────────────────────────────────*/
 MYLN_API const char* myln_tag      (void* frame);
 MYLN_API int         myln_dim      (void* frame);

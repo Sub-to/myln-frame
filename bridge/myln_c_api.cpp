@@ -74,6 +74,9 @@ const float* myln_infer(void* frame, const float* features, int n_in, int* out_n
     return c->out_buf.data();
 }
 
+// ── 拡張パッケージ用フック ────────────────────────────────
+void* myln_frame_native(void* frame) { return frame ? ctx(frame)->frame.get() : nullptr; }
+
 // ── メタ情報 ──────────────────────────────────────────────
 const char* myln_tag      (void* frame) { return ctx(frame)->frame->tag(); }
 int         myln_dim      (void* frame) { return ctx(frame)->frame->dim(); }

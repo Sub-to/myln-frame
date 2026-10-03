@@ -97,6 +97,11 @@ class _CAPI:
         lib.myln_cascade_relay_rate.restype  = ctypes.c_float
         lib.myln_cascade_relay_rate.argtypes = [ctypes.c_void_p]
 
+        # 拡張パッケージ用フック（古い libmyln には無い）
+        if hasattr(lib, "myln_frame_native"):
+            lib.myln_frame_native.restype  = ctypes.c_void_p
+            lib.myln_frame_native.argtypes = [ctypes.c_void_p]
+
         # 難易度判定チューナー（古い libmyln には無いので、あれば束縛）
         if hasattr(lib, "myln_tune_difficulty"):
             lib.myln_tune_difficulty.restype  = None
@@ -225,6 +230,12 @@ class MylnFrame:
         return labels[best], probs[best]
 
     # ── メタ情報 ───────────────────────────────────────────
+    @property
+    def native_ptr(self) -> int:
+        """myln::Frame* (拡張パッケージ用。C++側で Frame を直接設定するときに渡す)。"""
+        self._api.require("myln_frame_native")
+        return self._api.lib.myln_frame_native(self._handle)
+
     @property
     def tag(self)       -> str: return self._api.lib.myln_tag(self._handle).decode()
     @property
