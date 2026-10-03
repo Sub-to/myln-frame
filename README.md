@@ -135,6 +135,93 @@ label, conf, via_relay = cas.predict_with_path([0.5, 0.7, 0.3, 0.95, 0.6])
 
 ---
 
+## Tuners
+
+A *tuner* sets the Router weights, Ring parameters and Center Line classifier of a frame by hand — **no training**.
+
+| Tuner | Where | Input → Output | Use |
+|---|---|---|---|
+| `security` | `tuner/security_tuner.h` | 5 features → `SAFE`…`CRITICAL` | system monitoring (Chibitaru compatible) |
+| `difficulty` | `tuner/difficulty_tuner.h` | 5 features → `CHAT`…`EXTREME` | grading how hard a request is (e.g. model routing) |
+| `custom` | `include/myln/tune_config.h` | anything → anything | **any** setup from a JSON file — see below |
+
+Each has a C++ function, a C API call and a Python method:
+
+| | security | difficulty | custom (JSON) |
+|---|---|---|---|
+| C++ | `tune_security(frame)` / `tune_cascade_security(cas)` | `tune_difficulty(frame)` / `tune_cascade_difficulty(cas)` | `tune_custom(frame, path_or_json)` / `tune_cascade_custom(cas, ...)` |
+| C | `myln_tune_security` / `myln_cascade_tune_security` | `myln_tune_difficulty` / `myln_cascade_tune_difficulty` | `myln_tune_custom` / `myln_cascade_tune_custom` |
+| Python | `.tune_security()` | `.tune_difficulty()` | `.tune_custom(config)` |
+
+---
+
+## Difficulty grading
+
+Turns a request into a difficulty level. The frame does not read text — you extract five features
+(0.0–1.0) however you like, the tuner turns them into a level.
+
+| Index | Feature | Meaning |
+|---|---|---|
+| 0 | `tech` | technical density: code, file names, technical terms |
+| 1 | `length` | length of the request |
+| 2 | `steps` | number of steps ("first… then… finally") |
+| 3 | `scope` | blast radius: many files, whole project, deliverables — **weighted highest** |
+| 4 | `reasoning` | how much thinking it needs: root cause, comparison, design |
+
+**Output classes:** `0 CHAT (雑談)` · `1 EASY (易)` · `2 MEDIUM (中)` · `3 HARD (難)` · `4 EXTREME (最難)`
+
+```python
+from bridge.python.myln import MylnCascade, DIFFICULTY_CLASSES
+
+cas = MylnCascade(threshold=0.80).tune_difficulty()
+probs, used_relay = cas.infer([0.67, 0.14, 1.0, 1.0, 1.0])   # [tech, length, steps, scope, reasoning]
+print(DIFFICULTY_CLASSES[probs.index(max(probs))])            # → HARD
+```
+
+`bridge/python/difficulty.py` is a complete example: it extracts the five features from Japanese/English
+request text with a few regexes and prints `{"level", "conf", "relay", "features"}` as JSON
+(`echo '{"text":"..."}' | python3 bridge/python/difficulty.py`).
+
+---
+
+## Generic tuning API (JSON)
+
+Anything the built-in tuners do can be expressed as a JSON file — Router weights (per-slot W, b),
+Ring parameters and the Center Line classifier (W_cls). This is the portable "head config" format.
+
+```python
+from bridge.python.myln import MylnFrame, MylnCascade
+
+frame = MylnFrame("T", 5).tune_custom("configs/security.json")       # a file path…
+frame = MylnFrame("T", 5).tune_custom({"in_dim": 5, "router": ...})  # …or a dict / JSON string
+cas   = MylnCascade(0.80).tune_custom("configs/difficulty_cascade.json")
+```
+
+```c
+void* frame = myln_new("T", 5);
+if (myln_tune_custom(frame, "configs/security.json") != 0)
+    fprintf(stderr, "%s\n", myln_last_error());     // frame is left unchanged on error
+```
+
+- Invalid configs are rejected *before* anything is applied (and unknown keys are errors, so typos don't pass silently).
+- No dependencies: the C++ side ships its own ~200-line JSON parser.
+- `configs/` has ready-made `security*.json` and `difficulty*.json`, and the tests check that they give
+  **bit-identical** probabilities to the C++ tuners.
+- Full schema: [`docs/tuning-config.md`](docs/tuning-config.md).
+
+---
+
+## Tests
+
+```bash
+python3 tests/regression.py      # uses build/libmyln.dylib (or MYLN_LIB=path/to/libmyln)
+```
+
+Checks the difficulty output against a saved baseline (`tests/baseline/`), C++ tuner ⇔ JSON config equality,
+the security tuner against its saved probabilities, and that invalid configs are rejected without side effects.
+
+---
+
 ## Built with MYLN-FRAME
 
 | Project | Description |
@@ -154,6 +241,8 @@ include/myln/
   ring_attn.h     — Ring Attention: lateral sharing between heads
   center_line.h   — aggregation + classification (W_cls)
   cascade.h       — CascadeFrame: relay → confidence → full
+  tune_config.h   — generic JSON tuning (tune_custom / tune_cascade_custom)
+  mini_json.h     — dependency-free JSON parser used by tune_config.h
   math_ops.h      — Vec / Mat primitives
 
 heads/
@@ -163,11 +252,17 @@ heads/
 
 tuner/
   security_tuner.h     — manual weight tuning, no training needed
+  difficulty_tuner.h   — request difficulty: CHAT / EASY / MEDIUM / HARD / EXTREME
   earthquake_tuner.h   — seismic intensity → SAFE/LOW/MEDIUM/HIGH/CRITICAL
 
 bridge/
   myln_c_api.h/.cpp    — universal C API
   python/myln.py       — Python ctypes wrapper (MylnFrame, MylnCascade)
+  python/difficulty.py — text → 5 features → difficulty level (JSON in/out)
+
+configs/               — ready-made JSON tunings (security, difficulty; frame + cascade)
+docs/tuning-config.md  — JSON tuning schema
+tests/                 — regression tests + saved baselines
 ```
 
 ---
@@ -189,7 +284,7 @@ frame.set_head(3, std::make_unique<DefaultHead>());         // learned head
 **Future heads (planned):**
 - `WeatherHead` — typhoon / disaster alert scoring
 - `VoiceHead` — speech feature classification
-- `CustomHead` — loaded from `.mhead` config file
+- `CustomHead` — a head defined from a config file (Router/Ring/Center Line are already configurable via JSON)
 
 ---
 
@@ -213,7 +308,9 @@ Human–AI coexistence shouldn't depend on a data center.
 - [x] 2-stage cascade — relay + confidence threshold + full
 - [x] Universal C API — Python, Node.js, Ruby, Go, Rust
 - [x] Python bridge — `MylnFrame`, `MylnCascade`
-- [ ] `.mhead` file format — portable head configs
+- [x] Difficulty tuner — `tune_difficulty`
+- [x] JSON tuning config — `myln_tune_custom` / `tune_custom` ([schema](docs/tuning-config.md))
+- [ ] `.mhead` for *heads* — portable head definitions (weights of non-trivial heads)
 - [ ] WeatherHead — typhoon / disaster alert
 - [ ] CLI tool — `myln run --frame SS --head security.mhead`
 - [ ] Distributed mode — heads over socket / gRPC
