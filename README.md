@@ -170,6 +170,10 @@ Turns a request into a difficulty level. The frame does not read text — you ex
 
 **Output classes:** `0 CHAT (雑談)` · `1 EASY (易)` · `2 MEDIUM (中)` · `3 HARD (難)` · `4 EXTREME (最難)`
 
+It is an additive model: `score = 1.5·tech + 1.0·length + 1.5·steps + 2.5·scope + 1.0·reasoning`, cut at
+0.5 / 1.5 / 2.8 / 4.2. (Each slot contributes its share ×4 and the Center Line averages the four slots uniformly,
+so the frame computes exactly that sum.) Relay and full see the same score; the relay just answers faster when it is far from a boundary.
+
 ```python
 from bridge.python.myln import MylnCascade, DIFFICULTY_CLASSES
 

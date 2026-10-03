@@ -20,7 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from myln import MylnCascade  # noqa: E402
 
-TECH = re.compile(r"```|\.(py|ts|js|tsx|swift|cpp|c|h|rs|go|html|css|json|yaml|sh)\b|関数|クラス|バグ|エラー|実装|コード|プログラム|スクリプト|API|ビルド|コンパイル|テスト|function|class|bug|error|implement|compile|script|build|test", re.I)
+# 拡張子の直後に日本語が続く(例: main.pyの…)と \b は境界にならないため、(?![A-Za-z0-9_]) で終端を判定する
+TECH = re.compile(r"```|\.(?:py|ts|js|tsx|swift|cpp|c|h|rs|go|html|css|json|yaml|sh|md|toml|txt|csv)(?![A-Za-z0-9_])|関数|クラス|バグ|エラー|実装|コード|プログラム|スクリプト|API|ビルド|コンパイル|テスト|引数|変数|メソッド|ライブラリ|コマンド|クラッシュ|ソート|python|javascript|typescript|rust|swift|sql|function|class|bug|error|implement|compile|script|build|test", re.I)
 STEPS = re.compile(r"まず|次に|最後に|そのあと|その後|それから|してから|\b[1-9][.)]|①|②|and then|then |step", re.I)
 SCOPE = re.compile(r"全体|全部|すべて|プロジェクト|リポジトリ|複数|ディレクトリ|フォルダ|アーキテクチャ|リファクタ|移行|設計|repo|refactor|migrat|architecture|across|entire|whole", re.I)
 REASON = re.compile(r"なぜ|原因|理由|調査|比較|最適|トレードオフ|どちらが|デバッグ|設計|どうして|why|root cause|investigate|compare|trade-?off|optimi[sz]e|debug|design", re.I)
@@ -30,7 +31,7 @@ VIS = re.compile(r"図(?:に|で|を|示|表)|グラフ|チャート|可視化|�
 ASSUME = re.compile(r"想定|仮定|条件|前提|として|assum|suppose", re.I)
 NUMS = re.compile(r"[0-9０-９]+(?:[.．][0-9０-９]+)?")
 
-PATHS = re.compile(r"[\w./~-]+/[\w.-]+|[\w-]+\.(?:py|ts|js|swift|cpp|h|json|md)\b")
+PATHS = re.compile(r"[\w./~-]+/[\w.-]+|[\w-]+\.(?:py|ts|js|swift|cpp|h|json|md)(?![A-Za-z0-9_])")
 
 
 def clip(x: float) -> float:

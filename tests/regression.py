@@ -6,8 +6,11 @@ MYLN-FRAME 回帰テスト
   MYLN_LIB=build-dev/libmyln.dylib python3 tests/regression.py   # 開発ビルドを使う
 
 確認すること:
-  1. difficulty.py の出力が基準(tests/baseline/difficulty_baseline.json)と同じ level / relay / features
-  2. conf も基準と一致(丸め後。差が出たら報告する)
+  1. difficulty.py(Pi拡張と同じ呼び出し)の出力が
+       a. 期待レンジ(tests/baseline/difficulty_cases.json の tuning 全件)に入る
+       b. 整理後の基準 tests/baseline/difficulty_baseline_v1.json と level / relay / features / conf が一致
+     ※ tests/baseline/difficulty_baseline.json は 2026-10-03 の整理前(security流用版)の記録。履歴として保存のみ。
+  2. holdout(調整に使っていない文)の合格数が下がっていない(現在 12/15)
   3. C++ チューナー ⇔ JSON 設定 が同じ確率を返す(security / difficulty, Frame / Cascade)
   4. security の確率ベクトルが基準と一致
   5. 不正な設定はエラーになり、frame は変更されない(部分適用なし)
@@ -37,20 +40,35 @@ def maxdiff(a, b):
 
 
 # ── 1,2,6: difficulty.py(Pi拡張と同じ呼び出し方)────────────
-print("[1] difficulty.py vs baseline (subprocess, same as Pi extension)")
-base = json.loads((ROOT / "tests/baseline/difficulty_baseline.json").read_text(encoding="utf-8"))
-for b in base:
+def run_difficulty(text):
     r = subprocess.run(["python3", str(ROOT / "bridge/python/difficulty.py")],
-                       input=json.dumps({"text": b["text"]}), capture_output=True, text=True, env=os.environ)
+                       input=json.dumps({"text": text}), capture_output=True, text=True, env=os.environ)
     try:
-        d = json.loads(r.stdout)
+        return json.loads(r.stdout)
     except Exception:
-        check(False, f"{b['text'][:30]!r}: invalid output {r.stdout!r} {r.stderr[-200:]!r}")
-        continue
-    check(sorted(d.keys()) == ["conf", "features", "level", "relay"], f"keys {b['text'][:20]!r}")
-    check(d["level"] == b["level"], f"level {d['level']}=={b['level']}  {b['text'][:30]!r}")
-    check(d["relay"] == b["relay"] and d["features"] == b["features"], f"relay/features {b['text'][:20]!r}")
-    check(d["conf"] == b["conf"], f"conf {d['conf']}=={b['conf']}  {b['text'][:20]!r}")
+        return None
+
+
+print("[1] difficulty.py vs expected ranges and v1 baseline (subprocess, same as Pi extension)")
+cases = json.loads((ROOT / "tests/baseline/difficulty_cases.json").read_text(encoding="utf-8"))
+for text, lo, hi in cases["tuning"]:
+    d = run_difficulty(text)
+    check(d is not None and lo <= d["level"] <= hi, f"level {d and d['level']} in [{lo},{hi}]  {text[:34]!r}")
+base = json.loads((ROOT / "tests/baseline/difficulty_baseline_v1.json").read_text(encoding="utf-8"))
+for b in base:
+    d = run_difficulty(b["text"])
+    check(d is not None and sorted(d.keys()) == ["conf", "features", "level", "relay"], f"keys {b['text'][:20]!r}")
+    if d:
+        check(d["level"] == b["level"] and d["relay"] == b["relay"] and d["features"] == b["features"]
+              and d["conf"] == b["conf"], f"v1 baseline same  {b['text'][:30]!r}")
+
+print("[2] holdout (not used for tuning)")
+hold_ok = 0
+for text, lo, hi in cases["holdout"]:
+    d = run_difficulty(text)
+    hold_ok += bool(d and lo <= d["level"] <= hi)
+print(f"      holdout {hold_ok}/{len(cases['holdout'])}")
+check(hold_ok >= 12, "holdout passes >= 12/15 (known misses: investigate-type requests)")
 
 print("[6] Pi extension call: echo '{\"text\":\"こんにちは\"}' | python3 difficulty.py")
 r = subprocess.run(["python3", str(ROOT / "bridge/python/difficulty.py")],
