@@ -230,7 +230,7 @@ the security tuner against its saved probabilities, and that invalid configs are
 
 | Project | Description |
 |---|---|
-| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + worldwide earthquake alerts — USGS + JMA, uses the separate [myln-heads-earthquake](https://github.com/Sub-to/myln-heads-earthquake) package |
+| [🌍 myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor) | Real-time satellite tracking + worldwide earthquake alerts — USGS + JMA, uses the separate [myln-heads-earthquake-kai](https://github.com/Sub-to/myln-heads-earthquake-kai) package |
 
 ---
 
@@ -283,7 +283,7 @@ frame.set_head(3, std::make_unique<DefaultHead>());         // learned head
 **Shipped in the core:** `PassthroughHead`, `ZeroHead`, `DefaultHead`.
 
 **Separate packages** (built on the core, kept out of it):
-- [`myln-heads-earthquake`](https://github.com/Sub-to/myln-heads-earthquake) — `EarthquakeHead` + tuner, seismic severity classifier (~0.1 µs); powers [myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor).
+- [`myln-heads-earthquake-kai`](https://github.com/Sub-to/myln-heads-earthquake-kai) — `EarthquakeHead` + tuner, seismic severity classifier (~0.1 µs); powers [myln-earth-monitor](https://github.com/Sub-to/myln-earth-monitor).
   Extension packages configure a frame through `myln_frame_native()` (C API) / `MylnFrame.native_ptr` (Python).
 
 **Future heads (planned):**
