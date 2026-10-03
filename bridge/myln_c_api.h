@@ -45,9 +45,18 @@ MYLN_API void  myln_free(void* frame);
  * 将来の頭:
  *   myln_tune_weather  : 天気・台風判定（九州男丸）
  *   myln_tune_voice    : 音声・会話
- *   myln_tune_custom   : 設定ファイルから読み込み（将来）
+ *   myln_tune_custom   : JSON設定から読み込み（汎用。docs/tuning-config.md）
  */
 MYLN_API void myln_tune_security(void* frame, int in_dim);
+
+/* ── 汎用チューニング（JSON設定）──────────────────────────
+ * path_or_json: 先頭が '{' なら JSON 文字列、それ以外はファイルパス
+ * 戻り値      : 0=成功 / -1=失敗（理由は myln_last_error()）
+ *               検証に失敗した場合、frame は一切変更されない
+ * myln_last_error: 直近の失敗理由（スレッドごと。成功時は空文字列）
+ */
+MYLN_API int         myln_tune_custom(void* frame, const char* path_or_json);
+MYLN_API const char* myln_last_error (void);
 
 /* ── 推論 ──────────────────────────────────────────────────
  * features : 入力特徴量配列 (float32)
@@ -77,6 +86,8 @@ MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
 MYLN_API void*       myln_cascade_new      (float threshold);
 MYLN_API void        myln_cascade_free     (void* cas);
 MYLN_API void        myln_cascade_tune_security(void* cas, int in_dim);
+/* JSON設定: {"threshold":..., "relay":{...}, "full":{...}}  戻り値は myln_tune_custom と同じ */
+MYLN_API int         myln_cascade_tune_custom(void* cas, const char* path_or_json);
 MYLN_API const float* myln_cascade_infer   (void* cas, const float* features,
                                             int n_in, int* out_n,
                                             int* out_used_relay);

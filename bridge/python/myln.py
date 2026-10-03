@@ -16,6 +16,7 @@ Usage:
 """
 
 import ctypes
+import json
 import os
 import sys
 from pathlib import Path
@@ -23,6 +24,9 @@ from typing import Optional
 
 # ── libmyln の検索 ────────────────────────────────────────
 def _find_lib() -> str:
+    env = os.environ.get("MYLN_LIB")   # テスト・開発ビルド用の明示指定
+    if env:
+        return env
     candidates = [
         Path(__file__).parent.parent.parent / "build" / "libmyln.so",
         Path(__file__).parent.parent.parent / "build" / "libmyln.dylib",
@@ -86,7 +90,33 @@ class _CAPI:
         lib.myln_cascade_relay_rate.restype  = ctypes.c_float
         lib.myln_cascade_relay_rate.argtypes = [ctypes.c_void_p]
 
+        # 汎用チューニング API（古い libmyln には無いので、あれば束縛）
+        if hasattr(lib, "myln_tune_custom"):
+            lib.myln_tune_custom.restype  = ctypes.c_int
+            lib.myln_tune_custom.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+            lib.myln_cascade_tune_custom.restype  = ctypes.c_int
+            lib.myln_cascade_tune_custom.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+            lib.myln_last_error.restype  = ctypes.c_char_p
+            lib.myln_last_error.argtypes = []
+
         self.lib = lib
+
+    def tune_custom(self, fn_name: str, handle, config) -> dict:
+        """JSON設定(パス / JSON文字列 / dict)を適用し、解析済みの設定dictを返す。"""
+        if not hasattr(self.lib, fn_name):
+            raise RuntimeError("この libmyln は汎用チューニングに未対応です。再ビルドしてください。")
+        if isinstance(config, dict):
+            text = json.dumps(config)
+        else:
+            text = str(config)
+            if not text.lstrip().startswith("{"):
+                text = str(Path(text).expanduser().resolve())   # ファイルパス
+        rc = getattr(self.lib, fn_name)(handle, text.encode("utf-8"))
+        if rc != 0:
+            raise ValueError(self.lib.myln_last_error().decode("utf-8", "replace"))
+        if text.lstrip().startswith("{"):
+            return json.loads(text)
+        return json.loads(Path(text).read_text(encoding="utf-8"))
 
     def version(self) -> str:
         return self.lib.myln_version().decode()
@@ -112,6 +142,8 @@ class MylnFrame:
         if not self._handle:
             raise RuntimeError(f"myln_new({size}, {n_classes}) failed")
         self._n_classes = n_classes
+        self.classes = None    # tune_custom() の "classes"
+        self.features = None   # tune_custom() の "features"
 
     def __del__(self):
         if hasattr(self, "_handle") and self._handle:
@@ -123,6 +155,17 @@ class MylnFrame:
         """セキュリティ監視用に重みを手動チューニングする。"""
         self._api.lib.myln_tune_security(self._handle, in_dim)
         return self  # メソッドチェーン用
+
+    def tune_custom(self, config) -> "MylnFrame":
+        """
+        JSON設定でチューニングする（仕様: docs/tuning-config.md）。
+        config: ファイルパス / JSON文字列 / dict。不正な設定は ValueError（frame は変更されない）。
+        設定に "classes" があれば predict() のラベルに使われる。
+        """
+        spec = self._api.tune_custom("myln_tune_custom", self._handle, config)
+        self.classes = spec.get("classes") or None
+        self.features = spec.get("features") or None
+        return self
 
     # ── 推論 ───────────────────────────────────────────────
     def infer(self, features: list) -> list:
@@ -141,13 +184,13 @@ class MylnFrame:
 
     def predict(self, features: list, classes: Optional[list] = None) -> str:
         """最も確率の高いクラス名を返す。"""
-        labels = classes or self.SECURITY_CLASSES
+        labels = classes or self.classes or self.SECURITY_CLASSES
         probs  = self.infer(features)
         return labels[probs.index(max(probs))]
 
     def predict_with_score(self, features: list, classes: Optional[list] = None):
         """(クラス名, 確率) のタプルを返す。"""
-        labels = classes or self.SECURITY_CLASSES
+        labels = classes or self.classes or self.SECURITY_CLASSES
         probs  = self.infer(features)
         best   = probs.index(max(probs))
         return labels[best], probs[best]
@@ -184,6 +227,8 @@ class MylnCascade:
         self._handle = self._api.lib.myln_cascade_new(ctypes.c_float(threshold))
         if not self._handle:
             raise RuntimeError("myln_cascade_new() failed")
+        self.classes = None
+        self.features = None
 
     def __del__(self):
         if hasattr(self, "_handle") and self._handle:
@@ -191,6 +236,13 @@ class MylnCascade:
 
     def tune_security(self, in_dim: int = 5) -> "MylnCascade":
         self._api.lib.myln_cascade_tune_security(self._handle, in_dim)
+        return self
+
+    def tune_custom(self, config) -> "MylnCascade":
+        """JSON設定(relay/full 2セクション + threshold)でチューニングする。"""
+        spec = self._api.tune_custom("myln_cascade_tune_custom", self._handle, config)
+        self.classes = spec.get("classes") or None
+        self.features = spec.get("features") or None
         return self
 
     def infer(self, features: list) -> tuple:
@@ -208,13 +260,13 @@ class MylnCascade:
 
     def predict(self, features: list) -> str:
         probs, _ = self.infer(features)
-        return self.SECURITY_CLASSES[probs.index(max(probs))]
+        return (self.classes or self.SECURITY_CLASSES)[probs.index(max(probs))]
 
     def predict_with_path(self, features: list) -> tuple:
         """(クラス名, 確信度, リレー使用?) を返す"""
         probs, used_relay = self.infer(features)
         best = probs.index(max(probs))
-        return self.SECURITY_CLASSES[best], probs[best], used_relay
+        return (self.classes or self.SECURITY_CLASSES)[best], probs[best], used_relay
 
     @property
     def relay_rate(self) -> float:

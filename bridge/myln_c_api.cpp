@@ -1,6 +1,7 @@
 #include "myln_c_api.h"
 #include "../include/myln/frame.h"
 #include "../include/myln/cascade.h"
+#include "../include/myln/tune_config.h"
 #include "../tuner/security_tuner.h"
 #include "../tuner/earthquake_tuner.h"
 #include <memory>
@@ -15,6 +16,10 @@ struct MylnContext {
 };
 
 static MylnContext* ctx(void* h) { return static_cast<MylnContext*>(h); }
+
+// ── エラー保持（スレッドごと）─────────────────────────────
+static thread_local std::string g_last_error;
+const char* myln_last_error(void) { return g_last_error.c_str(); }
 
 // ── フレームのライフサイクル ──────────────────────────────
 void* myln_new(const char* size, int n_classes) {
@@ -39,6 +44,17 @@ void myln_tune_security(void* frame, int in_dim) {
     myln::SecurityTuneParams p;
     p.in_dim = in_dim;
     myln::tune_security(*ctx(frame)->frame, p);
+}
+
+int myln_tune_custom(void* frame, const char* path_or_json) {
+    g_last_error.clear();
+    try {
+        if (!frame || !path_or_json) throw std::runtime_error("null argument");
+        myln::tune_custom(*ctx(frame)->frame, path_or_json);
+        return 0;
+    } catch (const std::exception& e) { g_last_error = e.what(); }
+    catch (...) { g_last_error = "unknown error"; }
+    return -1;
 }
 
 // ── 推論 ─────────────────────────────────────────────────
@@ -81,6 +97,17 @@ void myln_cascade_free(void* cas) { delete cctx(cas); }
 void myln_cascade_tune_security(void* cas, int in_dim) {
     myln::tune_cascade_security(cctx(cas)->cas, cctx(cas)->cas.threshold());
     (void)in_dim;
+}
+
+int myln_cascade_tune_custom(void* cas, const char* path_or_json) {
+    g_last_error.clear();
+    try {
+        if (!cas || !path_or_json) throw std::runtime_error("null argument");
+        myln::tune_cascade_custom(cctx(cas)->cas, path_or_json);
+        return 0;
+    } catch (const std::exception& e) { g_last_error = e.what(); }
+    catch (...) { g_last_error = "unknown error"; }
+    return -1;
 }
 
 const float* myln_cascade_infer(void* cas, const float* features,
