@@ -45,9 +45,25 @@ MYLN_API void  myln_free(void* frame);
  * 将来の頭:
  *   myln_tune_weather  : 天気・台風判定（九州男丸）
  *   myln_tune_voice    : 音声・会話
- *   myln_tune_custom   : 設定ファイルから読み込み（将来）
+ *   myln_tune_custom   : JSON設定から読み込み（汎用。docs/tuning-config.md）
  */
 MYLN_API void myln_tune_security(void* frame, int in_dim);
+
+/* ── 汎用チューニング（JSON設定）──────────────────────────
+ * path_or_json: 先頭が '{' なら JSON 文字列、それ以外はファイルパス
+ * 戻り値      : 0=成功 / -1=失敗（理由は myln_last_error()）
+ *               検証に失敗した場合、frame は一切変更されない
+ * myln_last_error: 直近の失敗理由（スレッドごと。成功時は空文字列）
+ */
+MYLN_API int         myln_tune_custom(void* frame, const char* path_or_json);
+
+/* ── 難易度判定チューニング（依頼文 → 難易度）────────────────
+ * features: [tech, length, steps, scope, reasoning]  各 0.0〜1.0
+ * 出力クラス: 0=CHAT(雑談) 1=EASY(易) 2=MEDIUM(中) 3=HARD(難) 4=EXTREME(最難)
+ * (n_classes は 5 で作ること。in_dim は 5 固定)
+ */
+MYLN_API void myln_tune_difficulty(void* frame);
+MYLN_API const char* myln_last_error (void);
 
 /* ── 推論 ──────────────────────────────────────────────────
  * features : 入力特徴量配列 (float32)
@@ -58,17 +74,19 @@ MYLN_API void myln_tune_security(void* frame, int in_dim);
  */
 MYLN_API const float* myln_infer(void* frame, const float* features, int n_in, int* out_n);
 
+/* ── 拡張パッケージ用フック ────────────────────────────────
+ * myln_new() で作った frame の中身 (myln::Frame*) を返す。
+ * 別パッケージ(例: ドメイン専用のヘッド/チューナー)が C++ で Frame を直接設定するための口。
+ * 返したポインタは frame と同じ寿命。呼び出し側は同じバージョンの include/myln で
+ * コンパイルされている必要がある(ABI互換はヘッダ共有が前提)。
+ */
+MYLN_API void* myln_frame_native(void* frame);
+
 /* ── メタ情報 ──────────────────────────────────────────────*/
 MYLN_API const char* myln_tag      (void* frame);
 MYLN_API int         myln_dim      (void* frame);
 MYLN_API int         myln_n_classes(void* frame);
 MYLN_API const char* myln_version  (void);
-
-/* ── 地震監視 API ──────────────────────────────────────────
- * features: [intensity/7, magnitude/9, depth_inv, tsunami, freq/10]
- * 出力クラス: SAFE / LOW / MEDIUM / HIGH / CRITICAL
- */
-MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
 
 /* ── カスケード（2段リレー）API ────────────────────────────
  * リレー（SS 2頭）で高速判定 → 曖昧なら フル（T 4頭）へ
@@ -77,6 +95,10 @@ MYLN_API void myln_tune_earthquake(void* frame, int in_dim);
 MYLN_API void*       myln_cascade_new      (float threshold);
 MYLN_API void        myln_cascade_free     (void* cas);
 MYLN_API void        myln_cascade_tune_security(void* cas, int in_dim);
+/* JSON設定: {"threshold":..., "relay":{...}, "full":{...}}  戻り値は myln_tune_custom と同じ */
+MYLN_API int         myln_cascade_tune_custom(void* cas, const char* path_or_json);
+/* 難易度判定(リレー: tech+scope / フル: 4スロット)。threshold は myln_cascade_new の値を使う */
+MYLN_API void        myln_cascade_tune_difficulty(void* cas);
 MYLN_API const float* myln_cascade_infer   (void* cas, const float* features,
                                             int n_in, int* out_n,
                                             int* out_used_relay);

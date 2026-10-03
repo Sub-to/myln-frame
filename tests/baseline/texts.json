@@ -1,0 +1,17 @@
+[
+  "こんにちは",
+  "今日の天気は?",
+  "この関数の名前を変えて",
+  "main.pyのバグの原因を調べて直して",
+  "まずプロジェクト全体の設計を調査して、次にsrc/とtests/を複数ファイルでリファクタして、最後にテストして",
+  "ありがとう、助かりました",
+  "おすすめのラーメン屋を教えて",
+  "README.mdの誤字を直して",
+  "このエラーの意味を教えて: TypeError: undefined is not a function",
+  "app.tsとutils.tsを読んで、なぜ起動時にクラッシュするのか原因を調査して修正して",
+  "リポジトリ全体をTypeScriptからRustへ移行する計画を立てて、複数のディレクトリに分けて段階的に実装して、最後にテストを書いて",
+  "放物線の軌道を想定して、初速30m/s・角度45度のときの到達距離を計算して図にして",
+  "Compare the trade-offs between Redis and Postgres for session storage, then design the architecture across the whole service",
+  "pythonでフィボナッチ数列を出力するスクリプトを書いて",
+  "1. データを読み込み 2. 集計して 3. グラフにして 4. レポートに出力して。条件は月ごと、想定は欠損なし"
+]

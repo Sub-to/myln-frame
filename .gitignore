@@ -1,4 +1,6 @@
 build/
+build-dev/
+__pycache__/
 *.o
 *.a
 *.mhead

@@ -1,0 +1,444 @@
+[
+ {
+  "text": "こんにちは",
+  "level": 0,
+  "conf": 0.804,
+  "relay": true,
+  "features": [
+   0.0,
+   0.01,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "今日の天気は?",
+  "level": 0,
+  "conf": 0.802,
+  "relay": true,
+  "features": [
+   0.0,
+   0.02,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "ありがとう、助かりました",
+  "level": 0,
+  "conf": 0.619,
+  "relay": false,
+  "features": [
+   0.0,
+   0.03,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "おすすめのラーメン屋を教えて",
+  "level": 0,
+  "conf": 0.617,
+  "relay": false,
+  "features": [
+   0.0,
+   0.04,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "この関数の名前を変えて",
+  "level": 1,
+  "conf": 0.421,
+  "relay": false,
+  "features": [
+   0.33,
+   0.03,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "README.mdの誤字を直して",
+  "level": 1,
+  "conf": 0.423,
+  "relay": false,
+  "features": [
+   0.33,
+   0.04,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "pythonでフィボナッチ数列を出力するスクリプトを書いて",
+  "level": 1,
+  "conf": 0.455,
+  "relay": false,
+  "features": [
+   0.67,
+   0.07,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "このエラーの意味を教えて: TypeError: undefined is not a function",
+  "level": 2,
+  "conf": 0.421,
+  "relay": false,
+  "features": [
+   1.0,
+   0.13,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "main.pyのバグの原因を調べて直して",
+  "level": 2,
+  "conf": 0.434,
+  "relay": false,
+  "features": [
+   0.67,
+   0.05,
+   0.0,
+   0.0,
+   0.67
+  ]
+ },
+ {
+  "text": "app.tsとutils.tsを読んで、なぜ起動時にクラッシュするのか原因を調査して修正して",
+  "level": 3,
+  "conf": 0.478,
+  "relay": false,
+  "features": [
+   1.0,
+   0.12,
+   0.0,
+   0.5,
+   1.0
+  ]
+ },
+ {
+  "text": "1. データを読み込み 2. 集計して 3. グラフにして 4. レポートに出力して。条件は月ごと、想定は欠損なし",
+  "level": 3,
+  "conf": 0.487,
+  "relay": false,
+  "features": [
+   0.0,
+   0.14,
+   1.0,
+   0.5,
+   0.67
+  ]
+ },
+ {
+  "text": "まずプロジェクト全体の設計を調査して、次にsrc/とtests/を複数ファイルでリファクタして、最後にテストして",
+  "level": 4,
+  "conf": 0.98,
+  "relay": true,
+  "features": [
+   0.67,
+   0.14,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "text": "Compare the trade-offs between Redis and Postgres for session storage, then design the architecture across the whole service",
+  "level": 4,
+  "conf": 0.475,
+  "relay": false,
+  "features": [
+   0.0,
+   0.31,
+   0.33,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "text": "リポジトリ全体をTypeScriptからRustへ移行する計画を立てて、複数のディレクトリに分けて段階的に実装して、最後にテストを書いて",
+  "level": 4,
+  "conf": 0.58,
+  "relay": false,
+  "features": [
+   1.0,
+   0.17,
+   0.33,
+   1.0,
+   0.0
+  ]
+ },
+ {
+  "text": "放物線の軌道を想定して、初速30m/s・角度45度のときの到達距離を計算して図にして",
+  "level": 3,
+  "conf": 0.479,
+  "relay": false,
+  "features": [
+   1.0,
+   0.1,
+   0.0,
+   0.5,
+   1.0
+  ]
+ },
+ {
+  "text": "関数fooの引数を2つ追加して",
+  "level": 1,
+  "conf": 0.457,
+  "relay": false,
+  "features": [
+   0.67,
+   0.04,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "今何時?",
+  "level": 0,
+  "conf": 0.805,
+  "relay": true,
+  "features": [
+   0.0,
+   0.01,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "Pythonでリストをソートする方法を教えて",
+  "level": 1,
+  "conf": 0.456,
+  "relay": false,
+  "features": [
+   0.67,
+   0.06,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "src/とtests/とdocs/の全ファイルを読んで、アーキテクチャの問題点を調査して改善案を比較して",
+  "level": 3,
+  "conf": 0.412,
+  "relay": false,
+  "features": [
+   0.33,
+   0.13,
+   0.0,
+   0.5,
+   1.0
+  ]
+ },
+ {
+  "text": "おはよう!元気?",
+  "level": 0,
+  "conf": 0.8,
+  "relay": true,
+  "features": [
+   0.0,
+   0.02,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "明日は雨が降りそう?",
+  "level": 0,
+  "conf": 0.621,
+  "relay": false,
+  "features": [
+   0.0,
+   0.03,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "ありがとう!",
+  "level": 0,
+  "conf": 0.803,
+  "relay": true,
+  "features": [
+   0.0,
+   0.01,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "index.htmlのタイトルを変えて",
+  "level": 1,
+  "conf": 0.424,
+  "relay": false,
+  "features": [
+   0.33,
+   0.05,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "config.jsonのポート番号を8080にして",
+  "level": 1,
+  "conf": 0.426,
+  "relay": false,
+  "features": [
+   0.33,
+   0.06,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "JavaScriptで配列を逆順にする書き方は?",
+  "level": 1,
+  "conf": 0.426,
+  "relay": false,
+  "features": [
+   0.33,
+   0.06,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "ビルドが失敗する原因を調べて",
+  "level": 1,
+  "conf": 0.445,
+  "relay": false,
+  "features": [
+   0.33,
+   0.04,
+   0.0,
+   0.0,
+   0.67
+  ]
+ },
+ {
+  "text": "server.pyのテストを書いて、失敗したら修正して",
+  "level": 1,
+  "conf": 0.455,
+  "relay": false,
+  "features": [
+   0.67,
+   0.07,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "APIのレスポンスが遅い原因を調査して、改善案を比較して実装して",
+  "level": 2,
+  "conf": 0.464,
+  "relay": false,
+  "features": [
+   0.67,
+   0.08,
+   0.0,
+   0.0,
+   1.0
+  ]
+ },
+ {
+  "text": "まずDBのスキーマを設計して、次にマイグレーションを書いて、その後テストして、最後にドキュメントを更新して",
+  "level": 3,
+  "conf": 0.461,
+  "relay": false,
+  "features": [
+   0.33,
+   0.13,
+   1.0,
+   0.5,
+   0.67
+  ]
+ },
+ {
+  "text": "プロジェクト全体のエラー処理をリファクタして、複数のファイルにまたがる変更をテストして",
+  "level": 3,
+  "conf": 0.487,
+  "relay": false,
+  "features": [
+   0.67,
+   0.11,
+   0.0,
+   1.0,
+   0.0
+  ]
+ },
+ {
+  "text": "Refactor the whole repository to use async/await across all modules, then migrate the tests and update the docs",
+  "level": 3,
+  "conf": 0.483,
+  "relay": false,
+  "features": [
+   0.33,
+   0.28,
+   0.33,
+   1.0,
+   0.0
+  ]
+ },
+ {
+  "text": "こんにちは、今日は仕事が忙しくてつかれました",
+  "level": 0,
+  "conf": 0.609,
+  "relay": false,
+  "features": [
+   0.0,
+   0.06,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "この変数の意味は?",
+  "level": 1,
+  "conf": 0.42,
+  "relay": false,
+  "features": [
+   0.33,
+   0.02,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "text": "ソートアルゴリズムの計算量を比較して、なぜクイックソートが速いのか理由を説明して",
+  "level": 2,
+  "conf": 0.429,
+  "relay": false,
+  "features": [
+   1.0,
+   0.1,
+   0.0,
+   0.0,
+   1.0
+  ]
+ }
+]
